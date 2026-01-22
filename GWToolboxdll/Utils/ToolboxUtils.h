@@ -166,6 +166,7 @@ namespace GW {
         bool BelongsToFrame(GW::UI::Frame* parent, GW::UI::Frame* child);
     }
     namespace Agents {
+        bool IsAgentCarryingBundle(uint32_t agent_id);
         void AsyncGetAgentName(const Agent* agent, std::wstring& out);
     }
     namespace Items {

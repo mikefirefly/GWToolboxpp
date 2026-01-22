@@ -36,6 +36,7 @@
 #include <GWCA/GameEntities/Frame.h>
 #include <Modules/Resources.h>
 #include <Utils/GuiUtils.h>
+#include <GWCA/Managers/ItemMgr.h>
 
 namespace {
 
@@ -521,6 +522,11 @@ namespace GW {
     }
 
     namespace Agents {
+        bool IsAgentCarryingBundle(uint32_t agent_id) {
+            const auto agent = (GW::AgentLiving*)GW::Agents::GetAgentByID(agent_id);
+            const auto held_item = agent && agent->GetIsLivingType() ? GW::Items::GetItemById(agent->weapon_item_id) : 0;
+            return held_item && held_item->type == GW::Constants::ItemType::Bundle;
+        }
         void AsyncGetAgentName(const Agent* agent, std::wstring& out)
         {
             UI::AsyncDecodeStr(GetAgentEncName(agent), &out);
