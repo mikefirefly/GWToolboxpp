@@ -48,22 +48,22 @@ namespace GW {
     namespace Constants {
         enum class SkillID : uint32_t;
         enum class TitleID : uint32_t;
-
+        // Blunt, Piercing, Slashing, Cold, Lightning, Fire, Chaos, Dark, Holy, Nature, Sacrifice, Earth, Generic, Dark
         enum class DamageType : uint8_t {
             Blunt,
             Piercing,
-            Slashing,
-            Icy,
-            Shocking,
-            Fiery,
-            Chaotic,
-            Unholy,
+            Slashing, 
+            Cold, 
+            Lightning,
+            Fire,
+            Chaos,
+            Dark,
             Holy,
-            Wooden,
-            Sacrificial,
-            Ebon,
-            Magical,
-            UnholyDupe,
+            Nature, 
+            Sacrifice,
+            Earth,
+            Generic,
+            DarkDupe,
             Count,
             None = 0xff
         };
@@ -166,16 +166,20 @@ namespace GW {
         bool BelongsToFrame(GW::UI::Frame* parent, GW::UI::Frame* child);
     }
     namespace Agents {
+        bool IsAgentCarryingBundle(uint32_t agent_id);
         void AsyncGetAgentName(const Agent* agent, std::wstring& out);
     }
     namespace Items {
         GW::Constants::Rarity GetRarity(const GW::Item* item);
         ImColor GetRarityColor(const GW::Constants::Rarity rarity);
-        const wchar_t* GetItemTypeName(const GW::Constants::ItemType item_type);
-        const wchar_t* GetAttributeName(const GW::Constants::AttributeByte attribute);
-        const wchar_t* GetDamageTypeName(const GW::Constants::DamageType type);
-        const wchar_t* GetRarityName(const GW::Constants::Rarity rarity);
-        const wchar_t* GetItemTypeName(const GW::Constants::ItemType type);
+        const char* GetAttributeName(const GW::Constants::AttributeByte attribute);
+        const char* GetDamageTypeName(const GW::Constants::DamageType type);
+        const char* GetRarityName(const GW::Constants::Rarity rarity);
+        const char* GetItemTypeName(const GW::Constants::ItemType item_type);
+
+        uint32_t GetUses(GW::Item* item);
+        uint32_t GetAlcoholPointsPerUse(GW::Item* item);
+        bool IsAlcohol(GW::Item* item);
     }
 }
 

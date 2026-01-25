@@ -580,7 +580,8 @@ namespace {
                             GW::PartyMgr::SetPetBehavior(pet.owner_agent_id, GW::HeroBehavior::Fight);
                         }
                         for (auto& hero : w->hero_flags) {
-                            GW::PartyMgr::SetHeroTarget(hero.agent_id, party_target_info->identifier);
+                            if (!GW::Agents::IsAgentCarryingBundle(hero.agent_id)) 
+                                GW::PartyMgr::SetHeroTarget(hero.agent_id, party_target_info->identifier);
                         }
                     }
                 }

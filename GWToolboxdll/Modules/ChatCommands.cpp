@@ -3104,7 +3104,10 @@ void CHAT_CMD_FUNC(ChatCommands::CmdHeroBehaviour)
     }
 
     auto flag_hero = [behaviour](uint32_t agent_id) {
-        if (behaviour == 0xff) return GW::PartyMgr::SetHeroTarget(agent_id, GW::Agents::GetTargetId());
+        if (behaviour == 0xff) {
+            if (!GW::Agents::IsAgentCarryingBundle(agent_id))
+                GW::PartyMgr::SetHeroTarget(agent_id, GW::Agents::GetTargetId());
+        }
         return GW::PartyMgr::SetHeroBehavior(agent_id, (GW::HeroBehavior)behaviour);
     };
 

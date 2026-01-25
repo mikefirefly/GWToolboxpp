@@ -42,15 +42,15 @@ namespace {
         }
     }
 
-    std::wstring GetWeaponCategory(const ItemDrops::PendingDrop* drop)
+    std::string GetWeaponCategory(const ItemDrops::PendingDrop* drop)
     {
         if (!IsWeapon(drop)) {
-            return L"Non-Weapon";
+            return "Non-Weapon";
         }
 
-        std::wstring category = GW::Items::GetItemTypeName(drop->type);
+        std::string category = GW::Items::GetItemTypeName(drop->type);
         if (drop->damage_type != GW::Constants::DamageType::None) {
-            category += std::format(L" ({})",GW::Items::GetDamageTypeName(drop->damage_type));
+            category += std::format(" ({})",GW::Items::GetDamageTypeName(drop->damage_type));
         }
         return category;
     }
@@ -106,7 +106,7 @@ namespace {
         }
     }
 
-    void DrawDefaultGroupTable(const std::map<std::wstring, std::vector<ItemDrops::PendingDrop*>>& grouped)
+    void DrawDefaultGroupTable(const std::map<std::string, std::vector<ItemDrops::PendingDrop*>>& grouped)
     {
         if (ImGui::BeginTable("grouped_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
             ImGui::TableSetupColumn(group_mode_names[static_cast<int>(current_group_mode)], ImGuiTableColumnFlags_WidthStretch);
@@ -128,7 +128,7 @@ namespace {
                 ImGui::PushID(group_idx++);
 
                 // Use TreeNodeEx with a simple label
-                bool open = ImGui::TreeNodeEx("##tree", ImGuiTreeNodeFlags_SpanAvailWidth, "%ls", key.empty() ? L"(Unknown)" : key.c_str());
+                bool open = ImGui::TreeNodeEx("##tree", ImGuiTreeNodeFlags_SpanAvailWidth, "%s", key.empty() ? "(Unknown)" : key.c_str());
 
                 ImGui::TableNextColumn();
                 ImGui::Text("%zu", items.size());
@@ -171,7 +171,7 @@ namespace {
         }
     }
 
-    void DrawWeaponsTable(const std::map<std::wstring, std::vector<ItemDrops::PendingDrop*>>& grouped)
+    void DrawWeaponsTable(const std::map<std::string, std::vector<ItemDrops::PendingDrop*>>& grouped)
     {
         if (ImGui::BeginTable("grouped_table", 6, ImGuiTableFlags_Borders | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
             ImGui::TableSetupColumn("Weapon Type", ImGuiTableColumnFlags_WidthStretch);
@@ -188,7 +188,7 @@ namespace {
                 uint32_t total_value = 0;
                 uint16_t min_damage_overall = UINT16_MAX;
                 uint16_t max_damage_overall = 0;
-                std::set<std::wstring> requirements;
+                std::vector<std::string> requirements;
 
                 for (const auto* item : items) {
                     total_qty += item->quantity;
@@ -200,7 +200,7 @@ namespace {
                         max_damage_overall = item->max_damage;
                     }
                     if (item->requirement_attribute != GW::Constants::AttributeByte::None) {
-                        requirements.insert(std::to_wstring(item->requirement_value) + L" " + GW::Items::GetAttributeName(item->requirement_attribute));
+                        requirements.push_back(std::to_string(item->requirement_value) + " " + GW::Items::GetAttributeName(item->requirement_attribute));
                     }
                 }
 
@@ -208,7 +208,7 @@ namespace {
                 ImGui::TableNextColumn();
 
                 ImGui::PushID(group_idx++);
-                bool open = ImGui::TreeNodeEx("##tree", ImGuiTreeNodeFlags_SpanAvailWidth, "%ls", key.empty() ? L"(Unknown)" : key.c_str());
+                bool open = ImGui::TreeNodeEx("##tree", ImGuiTreeNodeFlags_SpanAvailWidth, "%s", key.empty() ? "(Unknown)" : key.c_str());
 
                 ImGui::TableNextColumn();
                 ImGui::Text("%zu", items.size());
@@ -223,12 +223,8 @@ namespace {
 
                 ImGui::TableNextColumn();
                 if (!requirements.empty()) {
-                    std::wstring req_text;
-                    for (const auto& req : requirements) {
-                        if (!req_text.empty()) req_text += L", ";
-                        req_text += req;
-                    }
-                    ImGui::Text("%ls", req_text.c_str());
+                    std::string req_text = TextUtils::Join(requirements, ", ");
+                    ImGui::Text("%s", req_text.c_str());
                 }
                 else {
                     ImGui::Text("-");
@@ -333,16 +329,16 @@ void DropTrackerWindow::Draw(IDirect3DDevice9*)
             DrawDefaultTable(drops);
         }
         else {
-            std::map<std::wstring, std::vector<ItemDrops::PendingDrop*>> grouped;
+            std::map<std::string, std::vector<ItemDrops::PendingDrop*>> grouped;
 
             for (auto drop : drops) {
-                std::wstring key;
+                std::string key;
                 switch (current_group_mode) {
                     case GroupMode::ItemName:
-                        key = drop->GetItemName()->wstring();
+                        key = drop->GetItemName()->string();
                         break;
                     case GroupMode::Map:
-                        key = Resources::GetMapName(drop->map_id)->wstring();
+                        key = Resources::GetMapName(drop->map_id)->string();
                         break;
                     case GroupMode::Rarity:
                         key = GW::Items::GetRarityName(drop->rarity);
