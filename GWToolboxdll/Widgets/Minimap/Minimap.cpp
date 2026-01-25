@@ -688,6 +688,7 @@ void Minimap::Initialize()
         GW::UI::UIMessage::kSkillActivated, 
         GW::UI::UIMessage::kCompassDraw,
         GW::UI::UIMessage::kEnableUIPositionOverlay,
+        GW::UI::UIMessage::kDestroyUIPositionOverlay
     };
     for (const auto message_id : hook_messages) {
         RegisterUIMessageCallback(&Generic_HookEntry, message_id, OnUIMessage);
@@ -711,6 +712,7 @@ void Minimap::OnUIMessage(GW::HookStatus* status, const GW::UI::UIMessage msgid,
     instance.pingslines_renderer.OnUIMessage(status, msgid, wParam, lParam);
     switch (msgid) {
         case GW::UI::UIMessage::kEnableUIPositionOverlay:
+        case GW::UI::UIMessage::kDestroyUIPositionOverlay:
             in_interface_settings = (uint32_t)wParam == 1;
             compass_position_dirty = true;
         break;
@@ -721,6 +723,7 @@ void Minimap::OnUIMessage(GW::HookStatus* status, const GW::UI::UIMessage msgid,
         }
         break;
         case GW::UI::UIMessage::kMapLoaded: {
+            in_interface_settings = false;
             EnsureCompassIsLoaded();
             instance.pmap_renderer.Invalidate();
             loading = false;
