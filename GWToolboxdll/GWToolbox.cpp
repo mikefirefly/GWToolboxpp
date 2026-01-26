@@ -681,11 +681,9 @@ const std::vector<ToolboxWidget*>& GWToolbox::GetWidgets()
 }
 
 
-bool GWToolbox::ShouldDisableToolbox(GW::Constants::MapID map_id)
+bool GWToolbox::ShouldDisableToolbox(GW::Constants::MapID)
 {
-    //const auto m = GW::Map::GetMapInfo(map_id);
     return false;
-    //return m && (m->GetIsPvP() || m->GetIsGuildHall());
 }
 
 bool GWToolbox::IsInitialized() { return gwtoolbox_state == GWToolboxState::Initialised; }
