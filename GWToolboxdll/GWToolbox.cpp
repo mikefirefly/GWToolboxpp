@@ -681,7 +681,7 @@ const std::vector<ToolboxWidget*>& GWToolbox::GetWidgets()
 }
 
 
-bool GWToolbox::ShouldDisableToolbox(GW::Constants::MapID)
+bool GWToolbox::ShouldDisableToolbox([[maybe_unused]] GW::Constants::MapID map_id)
 {
     return false;
 }
