@@ -857,6 +857,7 @@ GW::Constants::MapID TravelWindow::GetNearestOutpost(const GW::Constants::MapID 
     }
 
     const GW::AreaInfo* this_map = GW::Map::GetMapInfo(map_to);
+    if (!this_map) return GW::Constants::MapID::None;
     float nearest_distance = std::numeric_limits<float>::max();
     auto nearest_map_id = GW::Constants::MapID::None;
 
@@ -884,7 +885,7 @@ GW::Constants::MapID TravelWindow::GetNearestOutpost(const GW::Constants::MapID 
         if (!(IsValidOutpost(map_id) && GW::Map::GetMapInfo(map_id)->GetIsOnWorldMap()))
             continue;
         const auto map_info = GW::Map::GetMapInfo(map_id);
-        if (map_info->continent != this_map->continent)
+        if (!(map_info && map_info->continent == this_map->continent))
             continue;
         //if ((map_info->flags & 0x5000000) != 0)
         //   continue; // e.g. "wrong" augury rock is map 119, no NPCs
@@ -985,15 +986,7 @@ bool TravelWindow::TravelNearest(const GW::Constants::MapID map_id)
 {
     const auto outpost = GetNearestOutpost(map_id);
     if (outpost == GW::Constants::MapID::None) {
-        const GW::AreaInfo* map = GW::Map::GetMapInfo(map_id);
-        wchar_t map_name_buf[8];
-        constexpr wchar_t err_message_buf[256] = L"[Error] Failed to find a nearby unlocked outpost";
-        if (map && map->name_id && GW::UI::UInt32ToEncStr(map->name_id, map_name_buf, 8)) {
-            Log::ErrorW(L"[Error] Failed to find an unlocked outpost near \x1\x2%s", map_name_buf);
-        }
-        else {
-            Log::ErrorW(err_message_buf);
-        }
+        Log::ErrorW(L"[Error] Failed to find an unlocked outpost near %s", Resources::GetMapName(map_id)->wstring().c_str());
         return false;
     }
     return Travel(outpost);

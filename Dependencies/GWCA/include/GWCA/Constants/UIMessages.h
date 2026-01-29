@@ -48,7 +48,7 @@ namespace GW {
             kInitFrame,                     // 0x9
             kFrameMessage_0xa,
             kDestroyFrame,                  // 0xb
-            kFrameMessage_0xc,
+            kFrameDisabledChange,           // wparam = is_enabled
             kFrameMessage_0xd,
             kFrameMessage_0xe,
             kFrameMessage_0xf,
@@ -86,7 +86,7 @@ namespace GW {
             kMouseAction,                   // 0x2f, wparam = UIPacket::kMouseAction*
             kRenderFrame_0x30,              // 0x30
             kRenderFrame_0x31 = 0x35,              // 0x31
-            kRenderFrame_0x32,              // 0x32
+            kFrameVisibilityChanged,              // 0x32, wparam = is_visible
             kSetLayout,                     // 0x33
             kMeasureContent,                // 0x34
             kFrameMessage_0x35,             // 0x35
@@ -106,8 +106,8 @@ namespace GW {
             kRenderFrame_0x43,              // 0x43
             kFrameMessage_0x44 = 0x51,
             kFrameMessage_0x45,
-            kFrameMessage_0x46,
-            kFrameMessage_0x47 = 0x55,             // 0x47, Multiple uses depending on frame
+            kFrameMessage_0x46 = 0x55,
+            kFrameMessage_0x47,             // 0x47, Multiple uses depending on frame
             kFrameMessage_0x48,             // 0x48, Multiple uses depending on frame
             kFrameMessage_0x49,             // 0x49, Multiple uses depending on frame
             kFrameMessage_0x4a,             // 0x4a, Multiple uses depending on frame
@@ -258,9 +258,10 @@ namespace GW {
             kGetInventoryAgentId = 0x100001A1,           // 0x100001A1, wparam = 0, lparam = uint32_t* agent_id_out. Used to fetch which agent is selected
             kEquipItem = 0x100001A2,                     // 0x100001A2, wparam = { item_id, agent_id }
             kMoveItem = 0x100001A3,                      // 0x100001A3, wparam = { item_id, to_bag, to_slot, bool prompt }
-            kInitiateTrade = 0x100001A5,                 // 0x100001A5
-            kInventoryAgentChanged = 0x100001B5,         // 0x100001B5, Triggered when inventory needs updating due to agent change; no args
-            kOpenTemplate = 0x100001BE,                  // 0x100001BE, wparam = GW::UI::ChatTemplate*
+            kInitiateTrade = 0x100001A6,                 // 0x100001A5
+            kInventoryAgentChanged = 0x100001B6,         // 0x100001B5, Triggered when inventory needs updating due to agent change; no args
+            kPromptSaveTemplate = 0x100001be,
+            kOpenTemplate = 0x100001Bf,                  // 0x100001BE, wparam = GW::UI::ChatTemplate*
 
             // GWCA Client to Server commands. Only added the ones that are used for hooks, everything else goes straight into GW
 
