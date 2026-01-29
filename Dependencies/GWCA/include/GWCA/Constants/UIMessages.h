@@ -258,9 +258,10 @@ namespace GW {
             kGetInventoryAgentId = 0x100001A1,           // 0x100001A1, wparam = 0, lparam = uint32_t* agent_id_out. Used to fetch which agent is selected
             kEquipItem = 0x100001A2,                     // 0x100001A2, wparam = { item_id, agent_id }
             kMoveItem = 0x100001A3,                      // 0x100001A3, wparam = { item_id, to_bag, to_slot, bool prompt }
-            kInitiateTrade = 0x100001A5,                 // 0x100001A5
-            kInventoryAgentChanged = 0x100001B5,         // 0x100001B5, Triggered when inventory needs updating due to agent change; no args
-            kOpenTemplate = 0x100001BE,                  // 0x100001BE, wparam = GW::UI::ChatTemplate*
+            kInitiateTrade = 0x100001A6,                 // 0x100001A5
+            kInventoryAgentChanged = 0x100001B6,         // 0x100001B5, Triggered when inventory needs updating due to agent change; no args
+            kPromptSaveTemplate = 0x100001be,
+            kOpenTemplate = 0x100001Bf,                  // 0x100001BE, wparam = GW::UI::ChatTemplate*
 
             // GWCA Client to Server commands. Only added the ones that are used for hooks, everything else goes straight into GW
 
