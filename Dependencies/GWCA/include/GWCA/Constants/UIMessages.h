@@ -287,7 +287,8 @@ namespace GW {
             kPrintChatMessage = 0x30000000 | 0x1F, // wparam = UIPacket::kPrintChatMessage*. Triggered when a message wants to be added to the in-game chat window.
             kSendWorldAction = 0x30000000 | 0x20, // wparam = UIPacket::kSendWorldAction*
             kSetRendererValue = 0x30000000 | 0x21, // wparam = UIPacket::kSetRendererValue
-            kIdentifyItem = 0x30000000 | 0x22  // wparam = UIPacket::kIdentifyItem
+            kIdentifyItem = 0x30000000 | 0x22,  // wparam = UIPacket::kUseKitOnItem
+            kSalvageItem = 0x30000000 | 0x23  // wparam = UIPacket::kUseKitOnItem
         };
 
         namespace UIPacket {
@@ -324,7 +325,7 @@ namespace GW {
                 uint32_t* h0010;
                 uint32_t h0014;
             };
-            struct kIdentifyItem {
+            struct kUseKitOnItem {
                 uint32_t item_id;
                 uint32_t kit_id;
             };
@@ -488,8 +489,8 @@ namespace GW {
 
             struct kKeyAction {
                 uint32_t gw_key;
-                uint32_t h0004 = 0x4000;
-                uint32_t h0008 = 6;
+                uint32_t modifiers = 0;
+                uint32_t state_flags = 0; // shift held = 0x4, ctrl = 0x2, alt = 0x1
             };
             struct kMouseClick {
                 uint32_t mouse_button; // 0x0 = left, 0x1 = middle, 0x2 = right
