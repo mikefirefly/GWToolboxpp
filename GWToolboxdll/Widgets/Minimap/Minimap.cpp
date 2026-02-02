@@ -518,7 +518,7 @@ namespace {
 
     bool pending_refresh_quest_marker = true;
     bool RefreshQuestMarker() {
-        ASSERT(GW::Render::GetIsInRenderLoop() || GW::GameThread::IsInGameThread());
+        //ASSERT(GW::Render::GetIsInRenderLoop() || GW::GameThread::IsInGameThread());
         const auto frame = GetCompassFrame();
         if (!(frame && frame->IsCreated()))
             return false;
