@@ -7,6 +7,9 @@ layout: default
 Previous releases are available on Github as dll files. There is no support for older releases. If you are looking for
 the latest version, go to the [Home Page](./) instead.
 
+## Version 9.0
+* [Fix] Fixed toolbox for gw 38127
+
 ## Version 8.9
 * [Fix] Fixed crash when trying to save a skillbar in-game whilst toolbox is running
 * [Fix] Fixed issues with title display/use after gw update 38106
