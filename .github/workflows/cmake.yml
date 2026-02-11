@@ -7,7 +7,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
 
@@ -70,7 +70,7 @@ jobs:
         path: ${{runner.workspace}}/GWToolboxpp/bin/RelWithDebInfo/
 
     - name: Check version and create release
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/master'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,10 +109,10 @@ jobs:
         
         # Prepare artifacts
         BIN_DIR="${{runner.workspace}}/GWToolboxpp/bin/RelWithDebInfo"
-        cp "$BIN_DIR/GWToolbox.dll" .
-        gzip -c "$BIN_DIR/GWToolbox.pdb" > GWToolbox.pdb.gz
+        cp "$BIN_DIR/GWToolboxdll.dll" .
+        gzip -c "$BIN_DIR/GWToolboxdll.pdb" > GWToolboxdll.pdb.gz
         
         # Create release
         gh release create "$TAG_NAME" \
           --title "$TAG_NAME" \
-          GWToolbox.dll GWToolbox.pdb.gz
+          GWToolboxdll.dll GWToolboxdll.pdb.gz
