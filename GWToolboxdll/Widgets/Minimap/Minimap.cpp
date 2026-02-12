@@ -87,22 +87,33 @@ namespace {
     // Flagged when terminating minimap
     bool terminating = false;
 
-    Vec2i location;
-    Vec2i size;
+
     bool snap_to_compass = false;
 
     bool mousedown = false;
     bool camera_currently_reversed = false;
 
     GW::Vec2f shadowstep_location = {0.f, 0.f};
-    RECT clipping = {};
 
     Vec2i drag_start;
-    GW::Vec2f translation;
-    float scale = 0.f;
 
     // vars for minimap movement
     clock_t last_moved = 0;
+
+    /**
+     * Wrap runtime variables in o MinimapRenderContext - expose them as refs for our internal settings
+     */
+    MinimapRenderContext default_minimap_context{
+        .background_color = 0,
+        .foreground_color = 0xFF999999,
+        .shadow_color = 0xFF120808,
+    };
+    GW::Vec2f& translation = default_minimap_context.translation;
+    bool& circular_map = default_minimap_context.circular_map;
+    Color& color_map = reinterpret_cast<Color&>(default_minimap_context.foreground_color);
+    Color& color_mapshadow = reinterpret_cast<Color&>(default_minimap_context.shadow_color);
+    Color& color_mapbackground = reinterpret_cast<Color&>(default_minimap_context.background_color);
+    float& scale = default_minimap_context.zoom_scale;
 
     bool loading = false; // only consider some cases but still good
     bool compass_fix_pending = false;
@@ -111,7 +122,6 @@ namespace {
     bool flip_on_reverse = false;
     bool rotate_minimap = true;
     bool smooth_rotation = true;
-    bool circular_map = true;
     auto key_none_behavior = MinimapModifierBehaviour::Draw;
     auto key_ctrl_behavior = MinimapModifierBehaviour::Target;
     auto key_shift_behavior = MinimapModifierBehaviour::Move;
@@ -133,9 +143,6 @@ namespace {
 
     bool in_interface_settings = false;
 
-    Color color_map = 0xFF999999;
-    Color color_mapshadow = 0xFF120808;
-    Color color_mapbackground = 0;
 
     struct CompassAiControl {
         uint32_t field0_0x0;
@@ -195,12 +202,13 @@ namespace {
         GW::Vec2f v(static_cast<float>(pos.x), static_cast<float>(pos.y));
 
         // Invert viewport projection
-        v.x = v.x - static_cast<float>(location.x);
-        v.y = static_cast<float>(location.y) - v.y;
+        v.x = v.x - default_minimap_context.top_left.x;
+        v.y = default_minimap_context.top_left.y - v.y;
 
         // go from [0, width][0, height] to [-1, 1][-1, 1]
-        v.x = 2.0f * v.x / static_cast<float>(size.x) - 1.0f;
-        v.y = 2.0f * v.y / static_cast<float>(size.x) + 1.0f;
+        const auto size = default_minimap_context.size();
+        v.x = 2.0f * v.x / size.x - 1.0f;
+        v.y = 2.0f * v.y / size.x + 1.0f;
 
         // scale up to [-w, w]
         constexpr float w = 5000.0f;
@@ -213,7 +221,7 @@ namespace {
         v /= scale;
 
         // rotate by current camera rotation
-        const float angle = Minimap::Instance().GetMapRotation() - DirectX::XM_PIDIV2;
+        const float angle = default_minimap_context.rotation - DirectX::XM_PIDIV2;
         const float x1 = v.x * std::cos(angle) - v.y * std::sin(angle);
         const float y1 = v.x * std::sin(angle) + v.y * std::cos(angle);
         v = GW::Vec2f(x1, y1);
@@ -232,8 +240,9 @@ namespace {
         v.y = -v.y;
 
         // go from [0, width][0, height] to [-1, 1][-1, 1]
-        v.x = 2.0f * v.x / static_cast<float>(size.x);
-        v.y = 2.0f * v.y / static_cast<float>(size.x);
+        const auto size = default_minimap_context.size();
+        v.x = 2.0f * v.x / size.x;
+        v.y = 2.0f * v.y / size.x;
 
         // scale up to [-w, w]
         constexpr float w = 5000.0f;
@@ -412,34 +421,6 @@ namespace {
                (key_alt_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Alt));
     }
 
-    bool RepositionMinimapToCompass()
-    {
-        if (!snap_to_compass)
-            return false;
-        const auto frame = GetCompassFrame();
-        if (!frame)
-            return false;
-        constexpr float compass_padding = 1.05f;
-        auto top_left = frame->position.GetTopLeftOnScreen(frame);
-        auto bottom_right = frame->position.GetBottomRightOnScreen(frame);
-
-        const auto height = (bottom_right.y - top_left.y);
-        const auto diff = height - (height / compass_padding);
-
-        top_left.y += diff;
-        top_left.x += diff;
-        bottom_right.y -= diff;
-        bottom_right.x -= diff;
-
-        location = {static_cast<int>(top_left.x), static_cast<int>(top_left.y)};
-
-        const ImVec2 sz = {bottom_right.x - top_left.x, bottom_right.y - top_left.y};
-        size = {static_cast<int>(sz.x), static_cast<int>(sz.y)};
-
-        ImGui::SetWindowPos({static_cast<float>(location.x), static_cast<float>(location.y)});
-        ImGui::SetWindowSize({static_cast<float>(size.x), static_cast<float>(size.y)});
-        return true;
-    }
 
     FlaggingState GetFlaggingState()
     {
@@ -605,34 +586,33 @@ namespace {
         if (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable)
             Instance().effect_renderer.PacketCallback(pak);
     }
-}
 
-MinimapRenderContext MinimapRenderContext::FromWidget(const Minimap& minimap)
-{
-    MinimapRenderContext ctx;
+    bool RepositionMinimapToCompass()
+    {
+        if (!snap_to_compass)
+            return false;
+        const auto frame = GetCompassFrame();
+        if (!frame)
+            return false;
+        constexpr float compass_padding = 1.05f;
+        auto top_left = frame->position.GetTopLeftOnScreen(frame);
+        auto bottom_right = frame->position.GetBottomRightOnScreen(frame);
 
-    ctx.screen_position = {static_cast<float>(location.x), static_cast<float>(location.y)};
-    ctx.size = {static_cast<float>(::size.x), static_cast<float>(::size.y)};
-    ctx.base_scale = ctx.size.x;
-    ctx.translation = ::translation;
-    ctx.zoom_scale = scale;
-    ctx.rotation = minimap.GetMapRotation();
+        const auto height = (bottom_right.y - top_left.y);
+        const auto diff = height - (height / compass_padding);
 
-    ctx.foreground_color = color_map;
-    ctx.background_color = color_mapbackground;
-    ctx.shadow_color = color_mapshadow;
+        top_left.y += diff;
+        top_left.x += diff;
+        bottom_right.y -= diff;
+        bottom_right.x -= diff;
 
-    ctx.circular_map = ::circular_map;
-    ctx.draw_center_marker = (::translation.x != 0 || ::translation.y != 0);
+        default_minimap_context.top_left = top_left;
+        default_minimap_context.bottom_right = bottom_right;
 
-    ctx.UpdateClippingRect();
-
-    return ctx;
-}
-
-MinimapRenderContext Minimap::GetCurrentContext() const
-{
-    return MinimapRenderContext::FromWidget(*this);
+        ImGui::SetWindowPos(default_minimap_context.top_left);
+        ImGui::SetWindowSize(default_minimap_context.size());
+        return true;
+    }
 }
 
 void Minimap::DrawHelp()
@@ -981,18 +961,11 @@ void Minimap::DrawSettingsInternal()
                 color_map = 0xFF999999;
                 color_mapshadow = 0xFF120808;
                 color_mapbackground = 0x00000000;
-                pmap_renderer.Invalidate();
             }
         });
-        if (Colors::DrawSettingHueWheel("Map", &color_map)) {
-            pmap_renderer.Invalidate();
-        }
-        if (Colors::DrawSettingHueWheel("Shadow", &color_mapshadow)) {
-            pmap_renderer.Invalidate();
-        }
-        if (Colors::DrawSettingHueWheel("Background", &color_mapbackground)) {
-            pmap_renderer.Invalidate();
-        }
+        Colors::DrawSettingHueWheel("Map", &color_map);
+        Colors::DrawSettingHueWheel("Shadow", &color_mapshadow);
+        Colors::DrawSettingHueWheel("Background", &color_mapbackground);
         ImGui::TreePop();
     }
     custom_renderer.DrawSettings();
@@ -1265,22 +1238,10 @@ void Minimap::Draw(IDirect3DDevice9* device)
     }
     if (ImGui::Begin(Name(), nullptr, GetWinFlags(win_flags, true))) {
         // window pos are already rounded by imgui, so casting is no big deal
-        const auto pos = ImGui::GetWindowPos();
-        const auto sz = ImGui::GetWindowSize();
-
         if (!snap_to_compass) {
-            location.x = static_cast<int>(pos.x);
-            location.y = static_cast<int>(pos.y);
-            size.x = static_cast<int>(sz.x);
-            size.y = static_cast<int>(sz.y);
+            default_minimap_context.move_to(ImGui::GetWindowPos());
+            default_minimap_context.resize(ImGui::GetWindowSize());
         }
-
-        clipping = {
-            static_cast<LONG>(location.x),
-            static_cast<LONG>(location.y),
-            static_cast<LONG>(std::ceil(location.x + size.x)),
-            static_cast<LONG>(std::ceil(location.y + size.y)),
-        };
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
@@ -1288,8 +1249,17 @@ void Minimap::Draw(IDirect3DDevice9* device)
     if (pending_refresh_quest_marker && RefreshQuestMarker())
         pending_refresh_quest_marker = false;
 
-    auto context = GetCurrentContext();
-    Render(device, context);
+    const auto sz = default_minimap_context.size();
+    default_minimap_context.anchor_point = {
+        default_minimap_context.top_left.x + sz.x * 0.5f,
+        default_minimap_context.top_left.y + sz.y * 0.5f
+    };
+    // Scale the minimap relative to the window width
+    default_minimap_context.base_scale = sz.x;
+
+    default_minimap_context.rotation = GetMapRotation();
+
+    Render(device, default_minimap_context);
 
     if (hero_flag_controls_show && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable) {
         const GW::PartyInfo* playerparty = GetPlayerParty();
@@ -1299,8 +1269,8 @@ void Minimap::Draw(IDirect3DDevice9* device)
         if (has_flags) {
             if (hero_flag_window_attach) {
                 const auto viewport = ImGui::GetMainViewport();
-                ImGui::SetNextWindowPos(ImVec2(static_cast<float>(location.x) + viewport->Pos.x, static_cast<float>(location.y + size.y) + viewport->Pos.y));
-                ImGui::SetNextWindowSize(ImVec2(static_cast<float>(size.x), 40.0f));
+                ImGui::SetNextWindowPos(ImVec2(default_minimap_context.top_left.x + viewport->Pos.x, default_minimap_context.bottom_right.y + viewport->Pos.y));
+                ImGui::SetNextWindowSize(ImVec2(default_minimap_context.width(), 40.0f));
             }
             ImGui::PushStyleColor(ImGuiCol_WindowBg, ImColor(hero_flag_controls_background).Value);
             if (ImGui::Begin("Hero Controls", nullptr, GetWinFlags(hero_flag_window_attach ? ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove : 0, false))) {
@@ -1452,7 +1422,8 @@ void Minimap::Render(IDirect3DDevice9* device, const MinimapRenderContext& conte
     // Use context background color (or from pmap_renderer if 0)
     auto& instance = Instance();
     // Use context clipping rect instead of global
-    device->SetScissorRect(&context.clipping_rect);
+    const auto rect = context.rect();
+    device->SetScissorRect(&rect);
     device->SetRenderState(D3DRS_SCISSORTESTENABLE, true);
 
     // Use context.circular_map instead of global
@@ -1794,18 +1765,7 @@ bool Minimap::OnMouseWheel(const UINT, const WPARAM wParam, const LPARAM)
 bool Minimap::IsInside(const int x, const int y) const
 {
     // if outside square, return false
-    if (x < location.x) {
-        return false;
-    }
-    if (x > location.x + size.x) {
-        return false;
-    }
-    if (y < location.y) {
-        return false;
-    }
-    if (y > location.y + size.y) {
-        return false;
-    }
+
 
     // if centered, use radar range
     if (translation.x == 0 && translation.y == 0) {
@@ -1840,13 +1800,16 @@ void Minimap::RenderSetupProjection(IDirect3DDevice9* device, const MinimapRende
     constexpr float w = 5000.0f * 2;
     const DirectX::XMMATRIX ortho_matrix(2 / w, 0, 0, 0, 0, 2 / w, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
-    // Use context size and position instead of globals
     const auto width_f = static_cast<float>(viewport.Width);
     const auto height_f = static_cast<float>(viewport.Height);
-    const float xscale = context.size.x / width_f;
-    const float yscale = context.size.x / height_f;
-    const float xtrans = (context.screen_position.x * 2 + context.size.x) / width_f - 1.0f;
-    const float ytrans = -(context.screen_position.y * 2 + context.size.x) / height_f + 1.0f;
+    const float xscale = context.base_scale / width_f;
+    const float yscale = context.base_scale / height_f;
+
+    // anchor_point is where world (0,0) maps to on screen.
+    // After the view transform, the player IS at world (0,0),
+    // so this controls where the player appears on screen.
+    const float xtrans = (context.anchor_point.x * 2.0f) / width_f - 1.0f;
+    const float ytrans = -(context.anchor_point.y * 2.0f) / height_f + 1.0f;
 
     const DirectX::XMMATRIX viewport_matrix(xscale, 0, 0, 0, 0, yscale, 0, 0, 0, 0, 1, 0, xtrans, ytrans, 0, 1);
 

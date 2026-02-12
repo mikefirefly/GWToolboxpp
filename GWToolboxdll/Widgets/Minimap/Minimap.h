@@ -6,6 +6,8 @@
 
 #include "Defines.h"
 
+#include <Utils/GuiUtils.h>
+
 #include <Widgets/Minimap/AgentRenderer.h>
 #include <Widgets/Minimap/CustomRenderer.h>
 #include <Widgets/Minimap/EffectRenderer.h>
@@ -16,38 +18,27 @@
 #include <Widgets/Minimap/SymbolsRenderer.h>
 
 // Context structure that encapsulates all rendering parameters
-struct MinimapRenderContext {
+struct MinimapRenderContext : RectF {
     // Position and size
-    DirectX::XMFLOAT2 screen_position; // Top-left corner in screen coordinates
-    DirectX::XMFLOAT2 size; // Width and height in pixels (typically square)
+    ImVec2 anchor_point; // Center of minimap - this may not necessarily be the center point of the clipping rect
 
     // Camera/view parameters
     GW::Vec2f translation; // World-space translation (for panning)
-    float zoom_scale; // Zoom level (scale factor)
-    float rotation; // Map rotation in radians
+    float zoom_scale = 1.f; // Zoom level (scale factor)
+    float rotation = 1.5708f; // Map rotation in radians
 
-    float base_scale = 500.f; // The size (in px) of the base scale to use before zooming. Minimap sets this to size.x
+    float base_scale = 1.f; // The size (in px) of the base scale to use before zooming. Minimap sets this to size.x
 
     // Visual options
-    bool circular_map; // Whether to render as circle or square
-    bool draw_center_marker; // Whether to draw center marker when panned
-    D3DCOLOR background_color; // Background color (or 0 to use renderer's default)
-    D3DCOLOR foreground_color; // Foreground color (or 0 to use renderer's default)
-    D3DCOLOR shadow_color; // Drop shadow for foreground color
+    bool circular_map = false; // Whether to render as circle or square
+    bool draw_center_marker = false; // Whether to draw center marker when panned
+    D3DCOLOR background_color = D3DCOLOR_ARGB(50, 0, 0, 0); // Background color (or 0 to use renderer's default)
+    D3DCOLOR foreground_color = D3DCOLOR_ARGB(0xff, 0xe0, 0xe0, 0xe0); // Foreground color (or 0 to use renderer's default)
+    D3DCOLOR shadow_color = 0; // Drop shadow for foreground color
 
-    // Clipping rectangle (calculated from screen_position and size)
-    RECT clipping_rect;
-
-    // Helper to create context from current widget state
-    static MinimapRenderContext FromWidget(const class Minimap& minimap);
-
-    // Helper to calculate clipping rect from position and size
-    void UpdateClippingRect()
+    RECT rect() const
     {
-        clipping_rect.left = static_cast<LONG>(screen_position.x);
-        clipping_rect.top = static_cast<LONG>(screen_position.y);
-        clipping_rect.right = static_cast<LONG>(screen_position.x + size.x);
-        clipping_rect.bottom = static_cast<LONG>(screen_position.y + size.y);
+        return {static_cast<LONG>(top_left.x), static_cast<LONG>(top_left.y), static_cast<LONG>(bottom_right.x), static_cast<LONG>(bottom_right.y)};
     }
 };
 
@@ -132,7 +123,4 @@ private:
     static size_t GetPlayerHeroes(const GW::PartyInfo* party, std::vector<GW::AgentID>& _player_heroes, bool* has_flags = nullptr);
 
     static void OnUIMessage(GW::HookStatus*, GW::UI::UIMessage /*msgid*/, void* /*wParam*/, void*);
-
-    // Get context from current widget state
-    [[nodiscard]] MinimapRenderContext GetCurrentContext() const;
 };
