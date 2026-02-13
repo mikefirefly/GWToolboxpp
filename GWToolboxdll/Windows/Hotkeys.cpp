@@ -328,33 +328,37 @@ bool TBHotkey::Draw(Op* op, bool first, bool last)
         const float spacing = style.ItemSpacing.x;
         const float run_btn_width = 64.0f * scale;
 
-        float offset = 0.0f;
-        if (show_run_in_header) offset += run_btn_width + spacing;
+        // Draw buttons from right to left
 
-        // Up/Down buttons
-        offset += btn_size * 2 + spacing;
+        auto current_pos = ImGui::GetCursorPos();
+        current_pos.x = ImGui::GetContentRegionAvail().x + ImGui::GetIndent();
 
-        // Active checkbox
-        if (show_active_in_header) offset += btn_size + spacing;
-
-        if (group[0] != '\0') {
-            offset -= 21; // @Jon idk how to get this value from ImGuiStyle
-        }
-
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - offset);
-
-        if (show_active_in_header) {
-            hotkey_changed |= ImGui::Checkbox("##active", &active);
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip(
-                    "The hotkey can trigger only when selected");
+        if (show_run_in_header) {
+            current_pos.x -= run_btn_width;
+            ImGui::SetCursorPos(current_pos);
+            if (ImGui::Button(ongoing ? "Stop" : "Run", ImVec2(run_btn_width, 0.0f))) {
+                Toggle();
             }
-            ImGui::SameLine();
+            current_pos.x -= spacing;
         }
 
-        if (first) {
-            ImGui::Dummy(ImVec2(btn_size, btn_size));
-        } else {
+        current_pos.x -= btn_size;
+        if (!last) {
+            ImGui::SetCursorPos(current_pos);
+            if (ImGui::Button(ICON_FA_ARROW_DOWN, ImVec2(btn_size, btn_size))) {
+                *op = Op_MoveDown;
+                hotkey_changed = true;
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Move the hotkey down in the list");
+            }
+            
+        }
+        current_pos.x -= spacing;
+
+        current_pos.x -= btn_size;
+        if(!first) {
+            ImGui::SetCursorPos(current_pos);
             if (ImGui::Button(ICON_FA_ARROW_UP, ImVec2(btn_size, btn_size))) {
                 *op = Op_MoveUp;
                 hotkey_changed = true;
@@ -363,26 +367,16 @@ bool TBHotkey::Draw(Op* op, bool first, bool last)
                 ImGui::SetTooltip("Move the hotkey up in the list");
             }
         }
-        ImGui::SameLine();
+        current_pos.x -= spacing;
 
-        if (last) {
-            ImGui::Dummy(ImVec2(btn_size, btn_size));
-        } else {
-            if (ImGui::Button(ICON_FA_ARROW_DOWN, ImVec2(btn_size, btn_size))) {
-                *op = Op_MoveDown;
-                hotkey_changed = true;
-            }
+        if (show_active_in_header) {
+            ImGui::SetCursorPos(current_pos);
+            hotkey_changed |= ImGui::Checkbox("##active", &active);
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Move the hotkey down in the list");
+                ImGui::SetTooltip("The hotkey can trigger only when selected");
             }
         }
-
-        if (show_run_in_header) {
-            ImGui::SameLine();
-            if (ImGui::Button(ongoing ? "Stop" : "Run", ImVec2(run_btn_width, 0.0f))) {
-                Toggle();
-            }
-        }
+        
         ImGui::PopID();
         ImGui::PopID();
     };
