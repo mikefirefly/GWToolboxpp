@@ -713,7 +713,7 @@ namespace {
                         return pending_reinvite.reset();
                     }
                     pending_reinvite.identifier = hero_info->hero_id;
-                    GW::PartyMgr::KickHero(pending_reinvite.identifier);
+                    GW::PartyMgr::KickHero((GW::Constants::HeroID)pending_reinvite.identifier);
                     pending_reinvite.stage = PendingReinvite::Stage::InviteHero;
                     return;
                 }
@@ -735,7 +735,7 @@ namespace {
                 return pending_reinvite.reset();
             }
             case PendingReinvite::Stage::InviteHero: {
-                const GW::HeroInfo* hero_info = GW::PartyMgr::GetHeroInfo(pending_reinvite.identifier);
+                const GW::HeroInfo* hero_info = GW::PartyMgr::GetHeroInfo((GW::Constants::HeroID)pending_reinvite.identifier);
                 if (!hero_info) {
                     Log::Error("Failed to get hero info for %d", pending_reinvite.identifier);
                     return pending_reinvite.reset();
@@ -743,7 +743,7 @@ namespace {
                 if (hero_info->agent_id && IsHeroInParty(hero_info->agent_id)) {
                     return;
                 }
-                GW::PartyMgr::AddHero(pending_reinvite.identifier);
+                GW::PartyMgr::AddHero((GW::Constants::HeroID)pending_reinvite.identifier);
                 return pending_reinvite.reset();
             }
             case PendingReinvite::Stage::InvitePlayer: {
