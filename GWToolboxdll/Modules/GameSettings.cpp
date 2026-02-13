@@ -130,6 +130,7 @@ namespace {
     bool block_experience_gain = false;
     bool block_zero_experience_gain = true;
     bool lazy_chest_looting = false;
+    bool show_amount_of_lockpicks_under_locked_chest_nametag = false;
 
     bool check_and_prompt_if_mission_already_completed = true; // When entering a mission you've completed, check whether you should be doing it in HM/NM instead
 
@@ -2030,6 +2031,7 @@ void GameSettings::LoadSettings(ToolboxIni* ini)
 
     LOAD_BOOL(useful_level_progress_label);
     LOAD_BOOL(hide_store_page_on_char_select);
+    LOAD_BOOL(show_amount_of_lockpicks_under_locked_chest_nametag);
 
     LoadChannelColor(ini, Name(), "local", GW::Chat::Channel::CHANNEL_ALL);
     LoadChannelColor(ini, Name(), "guild", GW::Chat::Channel::CHANNEL_GUILD);
@@ -2245,6 +2247,7 @@ void GameSettings::SaveSettings(ToolboxIni* ini)
 
     SAVE_BOOL(automatically_flag_pet_to_fight_called_target);
     SAVE_BOOL(block_vanquish_complete_popup);
+    SAVE_BOOL(show_amount_of_lockpicks_under_locked_chest_nametag);
 }
 
 void GameSettings::DrawInventorySettings()
@@ -2461,6 +2464,7 @@ void GameSettings::DrawSettingsInternal()
 #endif
     ImGui::Unindent();
     ImGui::NewLine();
+    ImGui::Checkbox("Show 'You have N Lockpicks' on Locked Chest name tags", &show_amount_of_lockpicks_under_locked_chest_nametag);
     ImGui::Text("In-game name tag colors:");
     ImGui::Indent();
     ImGui::StartSpacedElements(checkbox_w);
@@ -3029,5 +3033,10 @@ void GameSettings::OnAgentNameTag(GW::HookStatus*, const GW::UI::UIMessage msgid
         case DEFAULT_NAMETAG_COLOR::ITEM:
             tag->text_color = nametag_color_item;
             break;
+    }
+    if (show_amount_of_lockpicks_under_locked_chest_nametag && tag->name_enc && wcscmp(tag->name_enc, L"\x8101\x6303\xf5ca\x9a4c\x71ff") == 0 && !tag->underline) {
+        static wchar_t you_have_n_lockpicks[32];
+        swprintf(you_have_n_lockpicks, _countof(you_have_n_lockpicks), L"\x108\x107You have %d Lockpicks\x1", GW::Items::CountItemByModelId(GW::Constants::ItemID::Lockpick, (int)GW::Constants::Bag::Backpack, (int)GW::Constants::Bag::Bag_2));
+        tag->extra_info_enc = you_have_n_lockpicks;
     }
 }
