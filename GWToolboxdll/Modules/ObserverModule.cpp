@@ -1442,7 +1442,6 @@ void ObserverModule::Update(const float)
         party_sync_timer = 0;
         return;
     }
-    
     if (TIMER_DIFF(party_sync_timer) > 1000) {
         SynchroniseParties();
         party_sync_timer = 0;

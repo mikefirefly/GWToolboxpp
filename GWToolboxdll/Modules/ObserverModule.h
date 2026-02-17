@@ -531,10 +531,9 @@ public:
     const std::unordered_map<uint32_t, ObservableParty*>& GetObservableParties() { return observable_parties; }
     const std::unordered_map<GW::Constants::SkillID, ObservableSkill*>& GetObservableSkills() { return observable_skills; }
 
-    // Get cached max HP for an agent (returns 0 if not cached)
-    uint32_t GetCachedMaxHP(uint32_t agent_id) const {
-        auto it = agent_max_hp_cache.find(agent_id);
-        return (it != agent_max_hp_cache.end()) ? it->second : 0;
+    // Get cached max HP for an agent (actively fetches and caches if not already cached)
+    uint32_t GetCachedMaxHP(uint32_t agent_id) {
+        return GetOrCacheMaxHP(agent_id);
     }
 
     bool match_finished = false;
