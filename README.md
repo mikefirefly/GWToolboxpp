@@ -100,8 +100,9 @@ All images in `resources/icons` are from www.flaticon.com
 
 ## Sponsors
 
+<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo" width="30" height="30" /> 
 **[JetBrains](https://github.com/JetBrains)**
-* <img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo" width="23" style="float: left" /> Providing core contributors with <a href="https://www.jetbrains.com/community/opensource">OSS Development Licenses</a>
+Provides core contributors with <a href="https://www.jetbrains.com/community/opensource">OSS Development Licenses</a>
 
-**[Termius](https://termius.com/)**
-* [<img src="./resources/termius-logo.svg" alt="Termius Logo" width="130" height="30">](https://termius.com) provides a secure, reliable, and collaborative SSH client.
+[<img src="./resources/termius-logo.svg" alt="Termius Logo" width="130" height="30" />](https://termius.com)
+**[Termius](https://termius.com/)** provides a secure, reliable, and collaborative SSH client.
