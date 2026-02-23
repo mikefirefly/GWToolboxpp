@@ -27,8 +27,8 @@
 #include <GWCA/Managers/PartyMgr.h>
 #include <GWCA/Managers/PlayerMgr.h>
 #include <GWCA/Managers/QuestMgr.h>
-#include <GWCA/Managers/StoCMgr.h>
 #include <GWCA/Managers/RenderMgr.h>
+#include <GWCA/Managers/StoCMgr.h>
 
 #include <GWCA/Utilities/Hooker.h>
 #include <GWCA/Utilities/MemoryPatcher.h>
@@ -37,44 +37,27 @@
 #include <Logger.h>
 #include <Utils/GuiUtils.h>
 
-#include "Minimap.h"
 #include <Defines.h>
-#include <Modules/Resources.h>
 #include <Modules/QuestModule.h>
+#include <Modules/Resources.h>
 #include <Utils/TextUtils.h>
+#include "Minimap.h"
+#include <Utils/FontLoader.h>
 
 namespace {
     GW::HookEntry ChatCmd_HookEntry;
 
     struct Vec2i {
-        Vec2i(const int _x, const int _y)
-            : x(_x),
-              y(_y) {}
+        Vec2i(const int _x, const int _y) : x(_x), y(_y) {}
 
         Vec2i() = default;
         int x = 0;
         int y = 0;
     };
 
-    enum class MinimapModifierBehaviour : int {
-        Disabled,
-        Draw,
-        Target,
-        Move,
-        Walk
-    };
+    enum class MinimapModifierBehaviour : int { Disabled, Draw, Target, Move, Walk };
 
-    enum FlaggingState : uint32_t {
-        FlagState_All = 0,
-        FlagState_Hero1,
-        FlagState_Hero2,
-        FlagState_Hero3,
-        FlagState_Hero4,
-        FlagState_Hero5,
-        FlagState_Hero6,
-        FlagState_Hero7,
-        FlagState_None
-    };
+    enum FlaggingState : uint32_t { FlagState_All = 0, FlagState_Hero1, FlagState_Hero2, FlagState_Hero3, FlagState_Hero4, FlagState_Hero5, FlagState_Hero6, FlagState_Hero7, FlagState_None };
 
     bool hide_flagging_controls = false;
     bool hide_compass_when_minimap_draws = false;
@@ -86,7 +69,7 @@ namespace {
 
     // Flagged when terminating minimap
     bool terminating = false;
-
+    bool cardinal_upright = false;
 
     bool snap_to_compass = false;
 
@@ -106,7 +89,9 @@ namespace {
     MinimapRenderContext default_minimap_context{
         .background_color = 0,
         .foreground_color = 0xFF999999,
-        .shadow_color = 0xFF120808,
+        .shadow_color = 0xFF120808, 
+        .cardinal_color = 0xffffffff, 
+        .draw_ranges = true
     };
     GW::Vec2f& translation = default_minimap_context.translation;
     bool& circular_map = default_minimap_context.circular_map;
@@ -142,6 +127,41 @@ namespace {
     bool render_all_quests = false;
 
     bool in_interface_settings = false;
+
+    // -------------------------------------------------------------------------
+    // Cardinal direction labels (N / S / E / W)
+    // -------------------------------------------------------------------------
+    Color& cardinal_color = reinterpret_cast<Color&>(default_minimap_context.cardinal_color);
+    float cardinal_offset = 0.0f;     // game-unit offset from compass edge; +ve = outward
+    float cardinal_font_size = 20.0f; // screen-space font size in pixels
+
+    // Projects a game-world position to an ImGui screen pixel, using the same
+    // transform chain that Minimap::Render / RenderSetupProjection applies.
+    //
+    // View chain (Minimap::Render):
+    //   translate(-me->pos) * rotateZ(-rotation + PI/2) * scale(zoom) * translate(pan)
+    // Projection (RenderSetupProjection):
+    //   ortho: ±5000 game units → ±1 NDC
+    //   viewport: NDC → pixels via base_scale and anchor_point
+    ImVec2 WorldToScreen(const GW::Vec2f& world_pos, const MinimapRenderContext& ctx, const GW::Vec2f& me_pos)
+    {
+        GW::Vec2f v = world_pos - me_pos; // translate so player is at origin
+        v += ctx.translation;             // apply pan
+        v *= ctx.zoom_scale;              // apply zoom
+
+        // Rotate: view uses RotationZ(-rotation + PI/2)
+        const float angle = DirectX::XM_PIDIV2 - ctx.rotation;
+        const float rx = v.x * std::cos(angle) - v.y * std::sin(angle);
+        const float ry = v.x * std::sin(angle) + v.y * std::cos(angle);
+
+        // Orthographic: ±5000 game units → ±1 NDC
+        const float nx = rx * (2.0f / 10000.0f);
+        const float ny = ry * (2.0f / 10000.0f);
+
+        // NDC → screen pixels (Y flipped: +Y world = up = smaller screen Y)
+        const float half = ctx.base_scale * 0.5f;
+        return {ctx.anchor_point.x + nx * half, ctx.anchor_point.y - ny * half};
+    }
 
 
     struct CompassAiControl {
@@ -294,19 +314,16 @@ namespace {
     bool OverrideCompassVisibility()
     {
         const auto frame = GetCompassFrame();
-        if (!(frame && frame->IsCreated() && !in_interface_settings))
-            return false;
+        if (!(frame && frame->IsCreated() && !in_interface_settings)) return false;
         const auto context = static_cast<CompassContext*>(GW::UI::GetFrameContext(frame));
-        if (!(context && context->compass_canvas))
-            return false;
+        if (!(context && context->compass_canvas)) return false;
         if (pending_compass_hide) {
             SetWindowVisibleTmp(GW::UI::WindowID_Compass, false);
             pending_compass_hide = false;
         }
 
         if (hide_compass_when_minimap_draws && Minimap::IsActive()) {
-            if (!(frame->IsCreated() && frame->IsVisible()))
-                return false;
+            if (!(frame->IsCreated() && frame->IsVisible())) return false;
             return GW::UI::SetFrameVisible(frame, false);
         }
         return ResetWindowPosition(GW::UI::WindowID_Compass, frame);
@@ -315,14 +332,9 @@ namespace {
     // If we've messed around with the window visibility, reset it here.
     bool ResetWindowPosition(GW::UI::WindowID window_id, GW::UI::Frame* frame)
     {
-        if (in_interface_settings)
-            return false;
-        GW::UI::UIPacket::kUIPositionChanged packet = {
-            window_id,
-            GW::UI::GetWindowPosition(window_id)
-        };
-        if (frame && packet.position && frame->IsCreated() && frame->IsVisible() != packet.position->visible())
-            return GW::UI::SendUIMessage(GW::UI::UIMessage::kUIPositionChanged, &packet);
+        if (in_interface_settings) return false;
+        GW::UI::UIPacket::kUIPositionChanged packet = {window_id, GW::UI::GetWindowPosition(window_id)};
+        if (frame && packet.position && frame->IsCreated() && frame->IsVisible() != packet.position->visible()) return GW::UI::SendUIMessage(GW::UI::UIMessage::kUIPositionChanged, &packet);
         return false;
     }
 
@@ -339,14 +351,12 @@ namespace {
                     break;
                 }
                 OnCompassFrame_UICallback_Ret(message, wParam, lParam);
-            }
-            break;
+            } break;
             case GW::UI::UIMessage::kResize: {
                 // NB: Resize packet creates flagging controls and compass canvas
                 OnCompassFrame_UICallback_Ret(message, wParam, lParam);
                 OverrideCompassVisibility();
-            }
-            break;
+            } break;
             case GW::UI::UIMessage::kFrameMessage_0x4a: // 0x4a need to pass through to allow hotkey flagging
                 OnCompassFrame_UICallback_Ret(message, wParam, lParam);
                 break;
@@ -397,8 +407,7 @@ namespace {
 
     GW::UI::Frame* GetCompassFrame()
     {
-        if (compass_frame)
-            return compass_frame;
+        if (compass_frame) return compass_frame;
         compass_frame = GW::UI::GetFrameByLabel(L"Compass");
         if (compass_frame) {
             ASSERT(compass_frame->frame_callbacks.size());
@@ -414,11 +423,8 @@ namespace {
 
     bool IsKeyDown(MinimapModifierBehaviour mmb)
     {
-        return (key_none_behavior == mmb && !ImGui::IsKeyDown(ImGuiMod_Ctrl) &&
-                !ImGui::IsKeyDown(ImGuiMod_Shift) && !ImGui::IsKeyDown(ImGuiMod_Alt)) ||
-               (key_ctrl_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Ctrl)) ||
-               (key_shift_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Shift)) ||
-               (key_alt_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Alt));
+        return (key_none_behavior == mmb && !ImGui::IsKeyDown(ImGuiMod_Ctrl) && !ImGui::IsKeyDown(ImGuiMod_Shift) && !ImGui::IsKeyDown(ImGuiMod_Alt)) || (key_ctrl_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Ctrl)) ||
+               (key_shift_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Shift)) || (key_alt_behavior == mmb && ImGui::IsKeyDown(ImGuiMod_Alt));
     }
 
 
@@ -514,8 +520,7 @@ namespace {
     bool RefreshQuestMarker()
     {
         const auto frame = GetCompassFrame();
-        if (!(frame && frame->IsCreated()))
-            return false;
+        if (!(frame && frame->IsCreated())) return false;
         if (const auto quest = GW::QuestMgr::GetActiveQuest()) {
             struct QuestUIMsg {
                 GW::Constants::QuestID quest_id{};
@@ -566,25 +571,21 @@ namespace {
 
     void OnPlayEffect(const GW::HookStatus*, GW::Packet::StoC::PlayEffect* pak)
     {
-        if (!(Instance().visible && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable))
-            return;
+        if (!(Instance().visible && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable)) return;
         Instance().effect_renderer.PacketCallback(pak);
     }
 
     void OnGenericValue(const GW::HookStatus*, const GW::Packet::StoC::GenericValue* pak)
     {
-        if (!(Instance().visible && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable))
-            return;
+        if (!(Instance().visible && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable)) return;
         Instance().effect_renderer.PacketCallback(pak);
     }
 
     void OnGenericValueTarget(GW::HookStatus*, const GW::Packet::StoC::GenericValueTarget* pak)
     {
-        if (!Instance().visible)
-            return;
+        if (!Instance().visible) return;
         Instance().pingslines_renderer.P153Callback(pak);
-        if (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable)
-            Instance().effect_renderer.PacketCallback(pak);
+        if (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable) Instance().effect_renderer.PacketCallback(pak);
     }
 
     bool RepositionMinimapToCompass()
@@ -609,7 +610,141 @@ namespace {
         ImGui::SetWindowSize(default_minimap_context.size());
         return true;
     }
-}
+
+    void DrawNSEW(const GW::Agent* me,const MinimapRenderContext& context)
+    {
+        if ((context.cardinal_color & IM_COL32_A_MASK) == 0) return;
+        // -------------------------------------------------------------------------
+        // Cardinal direction labels (N / S / E / W) — ImGui background draw list
+        //
+        // Font is chosen via FontLoader::GetFontByPx so we always render at a
+        // baked atlas size and avoid sub-pixel scaling blur.
+        //
+        // Two modes controlled by cardinal_upright:
+        //   true  — labels always read upright relative to the screen (default).
+        //   false — labels rotate with the minimap; each letter faces outward
+        //           from the compass centre so it reads correctly when the map
+        //           is rotated.
+        // -------------------------------------------------------------------------
+        ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
+
+        // Pick the smallest baked font >= the requested size.
+        // Render at its native FontSize — no scaling artefacts.
+        ImFont* font = FontLoader::GetFontByPx(cardinal_font_size, true);
+        const float render_size = font->FontSize;
+        const float text_scale = cardinal_font_size / render_size; // always 1.0f; kept for clarity
+
+        const float radius = GW::Constants::Range::Compass + cardinal_offset;
+
+        // Convert GWToolbox ARGB (0xAARRGGBB) → ImGui ABGR (0xAABBGGRR)
+        const ImU32 label_col = context.cardinal_color;
+        const ImU32 shadow_col = IM_COL32(0, 0, 0, (context.cardinal_color >> 24) & 0xFF);
+
+        // GW world axes: +X = east, +Y = north.
+        // label_angle: the angle (screen-space, CW from up) that this label's
+        //   top should point toward when in rotated mode.
+        //   N faces map-up   → base map angle
+        //   E faces map-right → base + PI/2
+        //   S faces map-down  → base + PI
+        //   W faces map-left  → base + 3*PI/2
+        //
+        // In upright mode label_angle is unused.
+        const float map_angle = context.rotation - DirectX::XM_PIDIV2;
+
+        struct Cardinal {
+            const char* text;
+            float dx;
+            float dy;
+            float label_angle; // per-label rotation for rotated mode
+        };
+        const Cardinal cardinals[] = {
+            {"N", 0.f, radius, map_angle},
+            {"S", 0.f, -radius, map_angle + DirectX::XM_PI},
+            {"E", radius, 0.f, map_angle + DirectX::XM_PIDIV2},
+            {"W", -radius, 0.f, map_angle + DirectX::XM_PI + DirectX::XM_PIDIV2},
+        };
+
+        if (cardinal_upright) {
+            // ------------------------------------------------------------------
+            // Fast path: axis-aligned text via AddText.
+            // ------------------------------------------------------------------
+            for (const auto& c : cardinals) {
+                const GW::Vec2f world_pos = {me->pos.x + c.dx, me->pos.y + c.dy};
+                const ImVec2 screen = WorldToScreen(world_pos, context, me->pos);
+                const ImVec2 text_size = font->CalcTextSizeA(render_size, FLT_MAX, 0.f, c.text);
+                const ImVec2 draw_pos = {screen.x - text_size.x * 0.5f, screen.y - text_size.y * 0.5f};
+
+                // 1-pixel drop shadow for legibility on any background
+                draw_list->AddText(font, render_size, {draw_pos.x + 1.f, draw_pos.y + 1.f}, shadow_col, c.text);
+                draw_list->AddText(font, render_size, draw_pos, label_col, c.text);
+            }
+        }
+        else {
+            // ------------------------------------------------------------------
+            // Rotated path: emit glyph quads manually with a per-label angle
+            // so each letter faces outward from its compass point.
+            // ------------------------------------------------------------------
+
+            // Emit one glyph string centred on `pivot`, rotated by `angle`.
+            // The shadow offset is 1 px in the label's own "down" direction.
+            auto AddTextRotated = [&](ImVec2 pivot, ImU32 col, const char* text, float angle) {
+                const float ca = std::cos(angle);
+                const float sa = std::sin(angle);
+
+                // Rotate local offset (ox, oy) around pivot
+                auto rot = [&](float ox, float oy) -> ImVec2 {
+                    return {pivot.x + ox * ca - oy * sa, pivot.y + ox * sa + oy * ca};
+                };
+
+                const float half_h = font->FontSize * text_scale * 0.5f;
+
+                // Total advance width for horizontal centring
+                float total_w = 0.f;
+                for (const char* p = text; *p;) {
+                    unsigned int cp;
+                    p += ImTextCharFromUtf8(&cp, p, nullptr);
+                    const ImFontGlyph* g = font->FindGlyph(static_cast<ImWchar>(cp));
+                    if (g) total_w += g->AdvanceX * text_scale;
+                }
+
+                draw_list->PushTextureID(font->ContainerAtlas->TexID);
+
+                float cursor_x = -total_w * 0.5f;
+                for (const char* p = text; *p;) {
+                    unsigned int cp;
+                    p += ImTextCharFromUtf8(&cp, p, nullptr);
+                    const ImFontGlyph* g = font->FindGlyph(static_cast<ImWchar>(cp));
+                    if (!g) continue;
+
+                    const float x0 = cursor_x + g->X0 * text_scale;
+                    const float y0 = -half_h + g->Y0 * text_scale;
+                    const float x1 = cursor_x + g->X1 * text_scale;
+                    const float y1 = -half_h + g->Y1 * text_scale;
+
+                    draw_list->PrimReserve(6, 4);
+                    draw_list->PrimQuadUV(rot(x0, y0), rot(x1, y0), rot(x1, y1), rot(x0, y1), {g->U0, g->V0}, {g->U1, g->V0}, {g->U1, g->V1}, {g->U0, g->V1}, col);
+
+                    cursor_x += g->AdvanceX * text_scale;
+                }
+
+                draw_list->PopTextureID();
+            };
+
+            for (const auto& c : cardinals) {
+                const GW::Vec2f world_pos = {me->pos.x + c.dx, me->pos.y + c.dy};
+                const ImVec2 screen = WorldToScreen(world_pos, context, me->pos);
+
+                // Shadow: 1 px along the label's own screen-down direction
+                const float ca_s = std::cos(c.label_angle);
+                const float sa_s = std::sin(c.label_angle);
+                const ImVec2 shadow_pivot = {screen.x + sa_s, screen.y - ca_s};
+
+                AddTextRotated(shadow_pivot, shadow_col, c.text, c.label_angle);
+                AddTextRotated(screen, label_col, c.text, c.label_angle);
+            }
+        }
+    }
+} // namespace
 
 void Minimap::DrawHelp()
 {
@@ -695,15 +830,13 @@ void Minimap::Initialize()
     GW::StoC::RegisterPacketCallback<GW::Packet::StoC::PlayEffect>(&Generic_HookEntry, OnPlayEffect);
     GW::StoC::RegisterPacketCallback<GW::Packet::StoC::GenericValue>(&Generic_HookEntry, OnGenericValue);
     GW::StoC::RegisterPacketCallback<GW::Packet::StoC::GenericValueTarget>(&Generic_HookEntry, OnGenericValueTarget);
-    constexpr std::array hook_messages = {
-        GW::UI::UIMessage::kMapChange,
-        GW::UI::UIMessage::kMapLoaded,
-        GW::UI::UIMessage::kChangeTarget,
-        GW::UI::UIMessage::kSkillActivated,
-        GW::UI::UIMessage::kCompassDraw,
-        GW::UI::UIMessage::kEnableUIPositionOverlay,
-        GW::UI::UIMessage::kDestroyUIPositionOverlay
-    };
+    constexpr std::array hook_messages = {GW::UI::UIMessage::kMapChange,
+                                          GW::UI::UIMessage::kMapLoaded,
+                                          GW::UI::UIMessage::kChangeTarget,
+                                          GW::UI::UIMessage::kSkillActivated,
+                                          GW::UI::UIMessage::kCompassDraw,
+                                          GW::UI::UIMessage::kEnableUIPositionOverlay,
+                                          GW::UI::UIMessage::kDestroyUIPositionOverlay};
     for (const auto message_id : hook_messages) {
         RegisterUIMessageCallback(&Generic_HookEntry, message_id, OnUIMessage, 0x8000);
     }
@@ -733,10 +866,8 @@ void Minimap::OnUIMessage(GW::HookStatus* status, const GW::UI::UIMessage msgid,
             break;
         case GW::UI::UIMessage::kCompassDraw: {
             ASSERT(wParam);
-            if (hide_compass_drawings)
-                status->blocked = true;
-        }
-        break;
+            if (hide_compass_drawings) status->blocked = true;
+        } break;
         case GW::UI::UIMessage::kMapLoaded: {
             in_interface_settings = false;
             EnsureCompassIsLoaded();
@@ -747,8 +878,7 @@ void Minimap::OnUIMessage(GW::HookStatus* status, const GW::UI::UIMessage msgid,
             // Cycle active quests to cache their markers
             PreloadQuestMarkers();
             pending_refresh_quest_marker = true;
-        }
-        break;
+        } break;
         case GW::UI::UIMessage::kSkillActivated: {
             const auto packet = static_cast<GW::UI::UIPacket::kAgentSkillPacket*>(wParam);
             ASSERT(packet && packet->skill_id < GW::Constants::SkillID::Count && packet->agent_id);
@@ -757,18 +887,15 @@ void Minimap::OnUIMessage(GW::HookStatus* status, const GW::UI::UIMessage msgid,
                     shadowstep_location = GW::Agents::GetControlledCharacter()->pos;
                 }
             }
-        }
-        break;
+        } break;
         case GW::UI::UIMessage::kMapChange: {
             loading = true;
             instance.agent_renderer.auto_target_id = 0;
-        }
-        break;
+        } break;
         case GW::UI::UIMessage::kChangeTarget: {
             const auto msg = static_cast<GW::UI::UIPacket::kChangeTarget*>(wParam);
             instance.agent_renderer.auto_target_id = GW::Agents::GetTargetId() ? 0 : msg->auto_target_id;
-        }
-        break;
+        } break;
         default:
             break;
     }
@@ -813,7 +940,7 @@ void CHAT_CMD_FUNC(Minimap::OnFlagHeroCmd)
     float x;
     float y;
     unsigned int n_heros = 0; // Count of heros available
-    unsigned int f_hero = 0; // Hero number to flag
+    unsigned int f_hero = 0;  // Hero number to flag
     if (arg1 == L"all" || arg1 == L"0") {
         if (argc < 3) {
             FlagHero(0); // "/flag all" == "/flag"
@@ -949,6 +1076,13 @@ void Minimap::DrawSettingsInternal()
     }
     if (ImGui::TreeNodeEx("Symbols", ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth)) {
         symbols_renderer.DrawSettings();
+        ImGui::Separator();
+        ImGui::Text("Cardinal (N/S/E/W) directions");
+        Colors::DrawSettingHueWheel("Color##cardinal", &cardinal_color);
+        ImGui::ShowHelp("Colour of the N/S/E/W labels shown at the compass edge.");
+        ImGui::SliderFloat("Offset##cardinal", &cardinal_offset, -1000.f, 1000.f, "%.0f gwinches");
+        ImGui::ShowHelp("Game-unit offset from the compass edge.\nPositive = outward, negative = inward.");
+        ImGui::SliderFloat("Font size##cardinal", &cardinal_font_size, 16.f, 56.f, "%.0f px");
         ImGui::TreePop();
     }
     if (ImGui::TreeNodeEx("Terrain", ImGuiTreeNodeFlags_FramePadding | ImGuiTreeNodeFlags_SpanAvailWidth)) {
@@ -1000,10 +1134,10 @@ void Minimap::DrawSettingsInternal()
     ImGui::Unindent();
     ImGui::Text("Hold + Click modifiers");
     ImGui::ShowHelp("Define behaviour of holding keyboard keys and clicking the minimap.\n"
-        "Draw: ping and draw on the compass.\n"
-        "Target: click to target agent.\n"
-        "Move: move the minimap outside of compass range.\n"
-        "Walk: start walking character to selected location.\n");
+                    "Draw: ping and draw on the compass.\n"
+                    "Target: click to target agent.\n"
+                    "Move: move the minimap outside of compass range.\n"
+                    "Walk: start walking character to selected location.\n");
     ImGui::Combo("None", reinterpret_cast<int*>(&key_none_behavior), minimap_modifier_behavior_combo_str);
     ImGui::Combo("Control", reinterpret_cast<int*>(&key_ctrl_behavior), minimap_modifier_behavior_combo_str);
     ImGui::Combo("Shift", reinterpret_cast<int*>(&key_shift_behavior), minimap_modifier_behavior_combo_str);
@@ -1030,17 +1164,14 @@ void Minimap::DrawSettingsInternal()
 void Minimap::LoadSettings(ToolboxIni* ini)
 {
     ToolboxWidget::LoadSettings(ini);
-    Resources::EnsureFileExists(
-        Resources::GetPath(L"Markers.ini"),
-        "https://raw.githubusercontent.com/gwdevhub/GWToolboxpp/master/resources/Markers.ini",
-        [](const bool success, const std::wstring& error) {
-            if (success) {
-                Instance().custom_renderer.LoadMarkers();
-            }
-            else {
-                Log::ErrorW(L"Failed to download Markers.ini\n%s", error.c_str());
-            }
-        });
+    Resources::EnsureFileExists(Resources::GetPath(L"Markers.ini"), "https://raw.githubusercontent.com/gwdevhub/GWToolboxpp/master/resources/Markers.ini", [](const bool success, const std::wstring& error) {
+        if (success) {
+            Instance().custom_renderer.LoadMarkers();
+        }
+        else {
+            Log::ErrorW(L"Failed to download Markers.ini\n%s", error.c_str());
+        }
+    });
     scale = static_cast<float>(ini->GetDoubleValue(Name(), VAR_NAME(scale), 1.0));
     LOAD_BOOL(hero_flag_controls_show);
     LOAD_BOOL(hero_flag_window_attach);
@@ -1069,6 +1200,10 @@ void Minimap::LoadSettings(ToolboxIni* ini)
     LOAD_COLOR(color_map);
     LOAD_COLOR(color_mapshadow);
     LOAD_COLOR(color_mapbackground);
+
+    cardinal_color = Colors::Load(ini, Name(), "cardinal_color", 0xFFFFFFFF);
+    cardinal_offset = static_cast<float>(ini->GetDoubleValue(Name(), "cardinal_offset", 0.0));
+    cardinal_font_size = static_cast<float>(ini->GetDoubleValue(Name(), "cardinal_font_size", 13.0));
 
     range_renderer.LoadSettings(ini, Name());
     agent_renderer.LoadSettings(ini, Name());
@@ -1112,6 +1247,10 @@ void Minimap::SaveSettings(ToolboxIni* ini)
     SAVE_COLOR(color_map);
     SAVE_COLOR(color_mapshadow);
     SAVE_COLOR(color_mapbackground);
+
+    Colors::Save(ini, Name(), "cardinal_color", cardinal_color);
+    ini->SetDoubleValue(Name(), "cardinal_offset", static_cast<double>(cardinal_offset));
+    ini->SetDoubleValue(Name(), "cardinal_font_size", static_cast<double>(cardinal_font_size));
 
     range_renderer.SaveSettings(ini, Name());
     agent_renderer.SaveSettings(ini, Name());
@@ -1242,14 +1381,10 @@ void Minimap::Draw(IDirect3DDevice9* device)
     ImGui::End();
     ImGui::PopStyleColor(2);
 
-    if (pending_refresh_quest_marker && RefreshQuestMarker())
-        pending_refresh_quest_marker = false;
+    if (pending_refresh_quest_marker && RefreshQuestMarker()) pending_refresh_quest_marker = false;
 
     const auto sz = default_minimap_context.size();
-    default_minimap_context.anchor_point = {
-        default_minimap_context.top_left.x + sz.x * 0.5f,
-        default_minimap_context.top_left.y + sz.y * 0.5f
-    };
+    default_minimap_context.anchor_point = {default_minimap_context.top_left.x + sz.x * 0.5f, default_minimap_context.top_left.y + sz.y * 0.5f};
     // Scale the minimap relative to the window width
     default_minimap_context.base_scale = sz.x;
 
@@ -1272,8 +1407,7 @@ void Minimap::Draw(IDirect3DDevice9* device)
             if (ImGui::Begin("Hero Controls", nullptr, GetWinFlags(hero_flag_window_attach ? ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove : 0, false))) {
                 static const char* flag_txt[] = {"All", "1", "2", "3", "4", "5", "6", "7", "8"};
                 const unsigned int num_heroflags = player_heroes.size() + 1;
-                const float w_but = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * static_cast<float>(num_heroflags)) /
-                                    static_cast<float>(num_heroflags + 1);
+                const float w_but = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * static_cast<float>(num_heroflags)) / static_cast<float>(num_heroflags + 1);
 
                 for (unsigned int i = 0; i < num_heroflags; ++i) {
                     if (i > 0) {
@@ -1291,7 +1425,7 @@ void Minimap::Draw(IDirect3DDevice9* device)
                         else {
                             SetFlaggingState(static_cast<FlaggingState>(i));
                         }
-                        //flagging[i] ^= 1;
+                        // flagging[i] ^= 1;
                     }
                     if (is_flagging) {
                         ImGui::PopStyleColor();
@@ -1327,9 +1461,7 @@ bool Minimap::ShouldMarkersDrawOnMap()
                 return false;
         }
     };
-    if (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Loading || (
-            GW::Map::GetInstanceType() == GW::Constants::InstanceType::Outpost &&
-            map_has_outpost_and_explorable(GW::Map::GetMapID()))) {
+    if (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Loading || (GW::Map::GetInstanceType() == GW::Constants::InstanceType::Outpost && map_has_outpost_and_explorable(GW::Map::GetMapID()))) {
         return false;
     }
     return true;
@@ -1387,27 +1519,16 @@ void Minimap::Render(IDirect3DDevice9* device, const MinimapRenderContext& conte
     device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
 
     const auto FillRect = [&device](const Color color, const float x, const float y, const float w, const float h) {
-        const D3DVertex vertices[6] = {
-            {x, y, 0.0f, color},
-            {x + w, y, 0.0f, color},
-            {x, y + h, 0.0f, color},
-            {x + w, y + h, 0.0f, color}
-        };
+        const D3DVertex vertices[6] = {{x, y, 0.0f, color}, {x + w, y, 0.0f, color}, {x, y + h, 0.0f, color}, {x + w, y + h, 0.0f, color}};
         device->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, vertices, sizeof(D3DVertex));
     };
 
-    const auto FillCircle = [&device](
-        const float x, const float y, const float radius, const Color clr, const unsigned resolution = 192u) {
+    const auto FillCircle = [&device](const float x, const float y, const float radius, const Color clr, const unsigned resolution = 192u) {
         const auto res = std::min(resolution, 192u);
         D3DVertex vertices[193];
         for (auto i = 0u; i <= res; i++) {
             const auto angle = static_cast<float>(i) / static_cast<float>(res) * DirectX::XM_2PI;
-            vertices[i] = {
-                x + radius * cos(angle),
-                y + radius * sin(angle),
-                0.0f,
-                clr
-            };
+            vertices[i] = {x + radius * cos(angle), y + radius * sin(angle), 0.0f, clr};
         }
         device->DrawPrimitiveUP(D3DPT_TRIANGLEFAN, res, vertices, sizeof(D3DVertex));
     };
@@ -1464,11 +1585,14 @@ void Minimap::Render(IDirect3DDevice9* device, const MinimapRenderContext& conte
 
 
     // Move the rings to the char position
-    translate_char = DirectX::XMMatrixTranslation(me->pos.x, me->pos.y, 0);
-    device->SetTransform(D3DTS_WORLD, reinterpret_cast<const D3DMATRIX*>(&translate_char));
-    const float gwinches_per_pixel = context.base_scale / 5000.0f / 2.f * context.zoom_scale;
-    instance.range_renderer.Render(device, gwinches_per_pixel);
-    device->SetTransform(D3DTS_WORLD, &reset_world);
+    if (context.draw_ranges) {
+        translate_char = DirectX::XMMatrixTranslation(me->pos.x, me->pos.y, 0);
+        device->SetTransform(D3DTS_WORLD, reinterpret_cast<const D3DMATRIX*>(&translate_char));
+        const float gwinches_per_pixel = context.base_scale / 5000.0f / 2.f * context.zoom_scale;
+        instance.range_renderer.Render(device, gwinches_per_pixel);
+        device->SetTransform(D3DTS_WORLD, &reset_world);
+    }
+
 
     // Use context.draw_center_marker or check context.translation
     if (context.draw_center_marker) {
@@ -1485,6 +1609,8 @@ void Minimap::Render(IDirect3DDevice9* device, const MinimapRenderContext& conte
     instance.agent_renderer.Render(device);
     instance.effect_renderer.Render(device);
     instance.pingslines_renderer.Render(device);
+    
+    DrawNSEW(me, context);
 
     if (context.circular_map) {
         device->SetRenderState(D3DRS_STENCILREF, 0);
@@ -1553,15 +1679,12 @@ bool Minimap::WndProc(const UINT Message, const WPARAM wParam, const LPARAM lPar
         return false;
     }
     if (mouse_clickthrough_in_explorable && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Explorable) {
-        if (!IsKeyDown(MinimapModifierBehaviour::Target) &&
-            !IsKeyDown(MinimapModifierBehaviour::Walk) &&
-            !IsKeyDown(MinimapModifierBehaviour::Move)) {
+        if (!IsKeyDown(MinimapModifierBehaviour::Target) && !IsKeyDown(MinimapModifierBehaviour::Walk) && !IsKeyDown(MinimapModifierBehaviour::Move)) {
             return Message == WM_LBUTTONDOWN && FlagHeros(lParam);
         }
     }
     if (mouse_clickthrough_in_outpost && GW::Map::GetInstanceType() == GW::Constants::InstanceType::Outpost) {
-        if (!IsKeyDown(MinimapModifierBehaviour::Target) && !IsKeyDown(MinimapModifierBehaviour::Walk) &&
-            !IsKeyDown(MinimapModifierBehaviour::Move)) {
+        if (!IsKeyDown(MinimapModifierBehaviour::Target) && !IsKeyDown(MinimapModifierBehaviour::Walk) && !IsKeyDown(MinimapModifierBehaviour::Move)) {
             return false;
         }
     }
@@ -1778,13 +1901,7 @@ bool Minimap::IsInside(const int x, const int y) const
 
 bool Minimap::IsActive()
 {
-    return Instance().visible
-           && !terminating
-           && !loading
-           && GW::Map::GetIsMapLoaded()
-           && !GW::UI::GetIsWorldMapShowing()
-           && GW::Map::GetInstanceType() != GW::Constants::InstanceType::Loading
-           && GW::Agents::GetObservingId() != 0;
+    return Instance().visible && !terminating && !loading && GW::Map::GetIsMapLoaded() && !GW::UI::GetIsWorldMapShowing() && GW::Map::GetInstanceType() != GW::Constants::InstanceType::Loading && GW::Agents::GetObservingId() != 0;
 }
 
 
