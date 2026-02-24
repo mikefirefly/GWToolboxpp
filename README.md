@@ -91,12 +91,17 @@ For developers: there are a few things you should take note of:
 **[Misty](https://github.com/Hour-of-the-Owl)/[DarkManic](https://github.com/DarkManic)**
 * Extensive work on the site and documentation.
 
-**[JetBrains](https://github.com/JetBrains)**
-* <img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo" width="23" style="float: left" /> Providing core contributors with <a href="https://www.jetbrains.com/community/opensource">OSS Development Licenses</a>
-
 **Everyone who [proposed a PR](https://github.com/gwdevhub/GWToolboxpp/pulls?q=is%3Apr+is%3Amerged)**
 
 **and everyone suggesting ideas!**
 
 
 All images in `resources/icons` are from www.flaticon.com
+
+## Sponsors
+
+[<img src="https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.png" alt="JetBrains Logo" width="30" height="30" />](https://github.com/JetBrains)<br>
+**[JetBrains](https://github.com/JetBrains)** provides core contributors with [OSS Development Licenses](https://www.jetbrains.com/community/opensource).
+
+[<img src="./resources/termius-logo.svg" alt="Termius Logo" width="130" height="30" />](https://termius.com)<br>
+**[Termius](https://termius.com/)** provides a secure, reliable, and collaborative SSH client.
