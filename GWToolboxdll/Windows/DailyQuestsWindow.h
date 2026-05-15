@@ -16,6 +16,8 @@ public:
     DailyQuests() { show_menubutton = can_show_in_main_window; }
     [[nodiscard]] const char* Name() const override { return "Daily Quests"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_CALENDAR_ALT; }
+    const char* Description() const override { return "Daily quest browser"; }
+
     void Initialize() override;
     void Terminate() override;
     void LoadSettings(ToolboxIni* ini) override;

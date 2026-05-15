@@ -20,6 +20,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Distance"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_RULER; }
+    [[nodiscard]] const char* Description() const override { return "Distance tracker"; }
 
     // Draw user interface. Will be called every frame if the element is visible
     void Draw(IDirect3DDevice9* pDevice) override;

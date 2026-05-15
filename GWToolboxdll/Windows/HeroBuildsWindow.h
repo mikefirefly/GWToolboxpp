@@ -72,6 +72,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Hero Builds"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_USERS; }
+    const char* Description() const override { return "Hero and party build manager"; }
 
     void Initialize() override;
     void Terminate() override;

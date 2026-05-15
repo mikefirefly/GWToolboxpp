@@ -44,6 +44,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Damage"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_BARS; }
+    [[nodiscard]] const char* Description() const override { return "Party damage breakdown"; }
 
     void Initialize() override;
     void Terminate() override;

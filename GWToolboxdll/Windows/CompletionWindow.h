@@ -251,7 +251,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Completion"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_BOOK; }
-
+    const char* Description() const override { return "Character completion tracker"; }
 
     void Initialize() override;
     static void Initialize_Prophecies();

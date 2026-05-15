@@ -18,6 +18,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Armory"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_VEST; }
+    const char* Description() const override { return "Armory that allows wearing all armor types"; }
 
     void Initialize() override;
     void Terminate() override;

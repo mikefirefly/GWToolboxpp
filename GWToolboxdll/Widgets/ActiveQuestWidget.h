@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Active Quest Info"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_BAHAI; }
+    [[nodiscard]] const char* Description() const override { return "Active quest summary"; }
 
     void Initialize() override;
     void Terminate() override;

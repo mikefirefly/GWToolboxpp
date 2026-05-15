@@ -21,6 +21,7 @@ public:
 
     const char* Name() const override { return "Market Browser"; }
     const char* Icon() const override { return ICON_FA_SHOPPING_CART; }
+    const char* Description() const override { return "Searchable gwmarket.net browser"; }
 
     void Initialize() override;
     void Terminate() override;

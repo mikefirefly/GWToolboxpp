@@ -19,6 +19,7 @@ public:
     }
 
     [[nodiscard]] const char* Icon() const override { return ICON_FA_HISTORY; }
+    [[nodiscard]] const char* Description() const override { return "Numeric durations of status effects"; }
 
     void Initialize() override;
     void Terminate() override;

@@ -138,6 +138,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Friend List"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_USER_FRIENDS; }
+    const char* Description() const override { return "On-screen friend list"; }
 
     [[nodiscard]] bool IsWidget() const override;
     [[nodiscard]] bool IsWindow() const override;

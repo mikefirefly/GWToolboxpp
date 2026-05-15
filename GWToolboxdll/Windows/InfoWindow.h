@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Info"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_INFO_CIRCLE; }
+    const char* Description() const override { return "Shows various GW  information that is hidden by default"; }
 
     void Initialize() override;
     void Terminate() override;

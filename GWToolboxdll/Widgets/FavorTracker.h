@@ -16,7 +16,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Favor Overlay"; }
     [[nodiscard]] const char* SettingsName() const override { return "Favor Tracker"; }
-    [[nodiscard]] const char* Description() const override { return "Shows an on-screen overlay of the current Favor of the Gods"; }
+    [[nodiscard]] const char* Description() const override { return "Favor of the Gods tracker"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_PRAY; }
 
     void Initialize() override;

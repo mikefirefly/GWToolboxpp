@@ -26,6 +26,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Builds"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_LIST; }
+    const char* Description() const override { return "Build manager that allows storing and sharing team builds"; }
 
     void Initialize() override;
     void Terminate() override;

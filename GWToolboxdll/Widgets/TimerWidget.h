@@ -19,6 +19,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Timer"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_STOPWATCH; }
+    [[nodiscard]] const char* Description() const override { return "In-game timer"; }
 
     void Initialize() override;
     void Terminate() override;

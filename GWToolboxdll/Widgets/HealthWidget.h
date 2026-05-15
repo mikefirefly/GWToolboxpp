@@ -27,6 +27,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Health"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_PERCENTAGE; }
+    const char* Description() const override { return "Target health tracker"; }
 
     void LoadSettings(ToolboxIni* ini) override;
     void SaveSettings(ToolboxIni* ini) override;

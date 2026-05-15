@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] const char *Name() const override { return "Account Inventory"; }
     [[nodiscard]] const char *Icon() const override { return ICON_FA_USERS; }
+    const char* Description() const override { return "Searchable, unified cross-account inventory list"; }
 
     // callbacks
 

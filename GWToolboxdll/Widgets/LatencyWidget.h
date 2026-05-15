@@ -17,7 +17,8 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Latency"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_STOPWATCH; }
-
+    const char* Description() const override { return "On-screen latency tracker"; }
+    
     static void SendPing();
     static uint32_t GetPing();
     static uint32_t GetAveragePing();

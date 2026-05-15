@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Inventory Sorting"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_SORT; }
+    const char* Description() const override { return "Customisable storage inventory sorting options"; }
 
     void Initialize() override;
     void Draw(IDirect3DDevice9* device) override;

@@ -18,6 +18,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Hotkeys"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_KEYBOARD; }
+    const char* Description() const override { return "Hotkey manager"; }
 
     void Initialize() override;
     void Terminate() override;

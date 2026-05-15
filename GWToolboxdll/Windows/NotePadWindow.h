@@ -15,6 +15,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Notepad"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_CLIPBOARD; }
+    const char* Description() const override { return "In-game notepad"; }
 
     // Draw user interface. Will be called every frame if the element is visible
     void Draw(IDirect3DDevice9* pDevice) override;

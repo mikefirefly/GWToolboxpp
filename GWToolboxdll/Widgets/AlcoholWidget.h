@@ -29,6 +29,7 @@ public:
 
     [[nodiscard]] const char* Name() const override { return "Alcohol"; }
     [[nodiscard]] const char* Icon() const override { return ICON_FA_BEER; }
+    [[nodiscard]] const char* Description() const override { return "Intoxication state tracker"; }
 
     void Initialize() override;
     void Update(float delta) override;
