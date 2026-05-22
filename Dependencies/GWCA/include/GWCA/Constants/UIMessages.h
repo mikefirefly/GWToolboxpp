@@ -33,6 +33,7 @@ namespace GW {
         enum class NumberPreference : uint32_t;
         enum class StringPreference : uint32_t;
         enum class EnumPreference : uint32_t;
+        enum class UiProfileSetting : uint32_t;
         struct CompassPoint;
 
         enum class UIMessage : uint32_t {
@@ -139,11 +140,11 @@ namespace GW {
             kMessage_0x1000000a,            // 0x1000000a
             kMessage_0x1000000b,            // 0x1000000b
             kDialogueMessage,               // 0x1000000c
-            kMessage_0x1000000d,            // 0x1000000d
+            kAgentOverheadFloat,            // 0x1000000d, // e.g. XP gain wparam = *GW::UI::UIPacket::kAgentOverheadNumber
             kMessage_0x1000000e,            // 0x1000000e
-            kMessage_0x1000000f,            // 0x1000000f
+            kAgentOverheadNumber,           // 0x1000000f, // e.g. damage, heal wparam = *GW::UI::UIPacket::kAgentOverheadNumber
             kMessage_0x10000010,            // 0x10000010
-            kMessage_0x10000011,            // 0x10000011
+            kAgentOverheadText,             // 0x10000011, // e.g. block, dodge wparam = *GW::UI::UIPacket::kAgentOverheadNumber
             kMessage_0x10000012,            // 0x10000012
             kMessage_0x10000013,            // 0x10000013
             kMessage_0x10000014,            // 0x10000014
@@ -260,7 +261,7 @@ namespace GW {
             kMessage_0x10000083,            // 0x10000083
             kFloatingWindowMoved,           // 0x10000084, wparam = frame_id
             kMessage_0x10000085,            // 0x10000085
-            kMessage_0x10000086,            // 0x10000086
+            kUIFeatureChanged,              // 0x10000086, wparam = UIPacket::kUIFeatureChanged*
             kMessage_0x10000087,            // 0x10000087
             kMessage_0x10000088,            // 0x10000088
             kMessage_0x10000089,            // 0x10000089
@@ -516,7 +517,7 @@ namespace GW {
             kTravel,                        // 0x10000183
             kOpenWikiUrl,                   // 0x10000184, wparam = char* url
             kMessage_0x10000181,            // 0x10000185
-            kMessage_0x10000182,            // 0x10000186
+            kOpenUrlNoPrompt,               // 0x10000186, wparam = char* url
             kSetPreGameContext_Value0,      // 0x10000187, wparam = uint32_t value
             kMessage_0x10000184,            // 0x10000188
             kGetPreGameContext_Value0,      // 0x10000189, lparam = *uint32_t value_out
@@ -548,7 +549,7 @@ namespace GW {
             kShowHeroPanel,                 // 0x100001a3, wparam = hero_id
             kMessage_0x1000019e,            // 0x100001a4
             kMessage_0x1000019f,            // 0x100001a5
-            kMessage_0x100001a0,            // 0x100001a6
+            kQuerySuppressedKeyAction,      // 0x100001a6, wparam = 0, lparam = bool*. Used to check if the suppress action is pressed (usually shift)
             kGetInventoryAgentId,           // 0x100001a7, wparam = 0, lparam = uint32_t* agent_id_out. Used to fetch which agent is selected
             kInventoryRelated1,             // 0x100001a8, added to GW 2026-02-26
             kInventoryRelated2,             // 0x100001a9, added to GW 2026-02-26
@@ -566,9 +567,9 @@ namespace GW {
             kMessage_0x100001a8,            // 0x100001b5
             kMessage_0x100001a9,            // 0x100001b6
             kMessage_0x100001aa,            // 0x100001b7
-            kMessage_0x100001ab,            // 0x100001b8
+            kPartySearchWindowDestroyed,    // 0x100001b8
             kMessage_0x100001ac,            // 0x100001b9
-            kMessage_0x100001ad,            // 0x100001ba
+            kPartySearchWindowCreated,      // 0x100001ba
             kMessage_0x100001ae,            // 0x100001bb
             kMessage_0x100001af,            // 0x100001bc
             kMessage_0x100001b0,            // 0x100001bd
@@ -583,8 +584,8 @@ namespace GW {
             kMissionStatusRelated,          // 0x100001c6
             kUnused_1c2,                    // 0x100001c7
             kCollapseExpandSkillListSection,  // 0x100001c8
-            kTemplateRelated_1,             // 0x100001c9
-            kTemplateRelated_2,             // 0x100001ca
+            kPromptLoadTemplate,            // 0x100001c9
+            kOpenTemplateManager,           // 0x100001ca
             kPromptSaveTemplate,            // 0x100001cb
             kOpenTemplate,                  // 0x100001cc, wparam = GW::UI::ChatTemplate*
             kTemplateRelated_3,             // 0x100001cd
@@ -615,12 +616,41 @@ namespace GW {
             kSendWorldAction = 0x30000000 | 0x20,  // 0x30000020, wparam = UIPacket::kSendWorldAction*
             kSetRendererValue = 0x30000000 | 0x21,  // 0x30000021, wparam = UIPacket::kSetRendererValue
             kIdentifyItem = 0x30000000 | 0x22,  // 0x30000022, wparam = UIPacket::kUseKitOnItem
-            kSalvageItem = 0x30000000 | 0x23  // 0x30000023, wparam = UIPacket::kUseKitOnItem
+            kSalvageItem = 0x30000000 | 0x23,  // 0x30000023, wparam = UIPacket::kUseKitOnItem
+            kAddCustomChatLink = 0x30000000 | 0x24,  // 0x30000024, wparam = UIPacket::kAddCustomChatLink. Triggered when GWCA parses a [label;url] link in chat that GW didn't handle
+            kChatLinkClicked = 0x30000000 | 0x25  // 0x30000025, wparam = UIPacket::kChatLinkClicked. Triggered when the player clicks an <a> link in chat, e.g. build code
         };
 
         //static_assert(GW::UI::UIMessage::kOpenTemplate == (GW::UI::UIMessage)0x100001c4);
 
         namespace UIPacket {
+            struct kUIFeatureChanged {
+                GW::UI::UiProfileSetting setting;
+                bool flag;
+            };
+            struct kAddCustomChatLink {
+                GW::Chat::Channel channel;      // GW::Chat::Channel
+                wchar_t link_prefix[32];
+                wchar_t sender[32];    // whoever sent the chat message
+                wchar_t label[256];
+                wchar_t url[256];
+            };
+            struct kChatLinkClicked {
+                const wchar_t* sender;
+                const wchar_t* label;
+                const wchar_t* url;
+            };
+            struct kAgentOverheadNumber {
+                uint32_t agent_id;
+                uint32_t h0004;
+                wchar_t* encoded_str;
+                uint32_t style;
+                uint32_t h0010;
+                uint32_t h0014;
+                uint32_t h0018;
+                uint32_t h001c;
+                uint32_t amount;
+            };
             struct kDialogueMessage {
                 uint32_t agent_id;
                 wchar_t* sender;
