@@ -726,7 +726,7 @@ void GWToolbox::SetProfilingEnabled(bool enabled)
 bool GWToolbox::ShouldDisableToolbox(GW::Constants::MapID map_id)
 {
 	const auto m = GW::Map::GetMapInfo(map_id);
-    if (m) { return false; } else return false;
+    if (m) return false; else return false;
 }
 
 bool GWToolbox::IsInitialized() { return gwtoolbox_state == GWToolboxState::Initialised; }
