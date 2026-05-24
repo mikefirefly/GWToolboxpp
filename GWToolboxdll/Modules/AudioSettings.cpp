@@ -197,8 +197,8 @@ bool AudioSettings::StopSound(void* handle)
 {
     // This doesn't work :(
     if (!(StopSound_Func && CloseHandle_Func && handle)) return false;
-    GW::GameThread::Enqueue([handle]() {
-        StopSound_Func((GW::RecObject*)handle,0);
+    GW::GameThread::Enqueue([handle] {
+        StopSound_Func((GW::RecObject*)handle, 0);
         CloseHandle_Func((GW::RecObject*)handle);
     });
     return true;
@@ -250,9 +250,9 @@ void AudioSettings::Initialize()
 
 }
 void AudioSettings::Update(float) {
-    for (auto& it : blocked_sounds_until) {
-        if (it.second < TIMER_INIT()) {
-            blocked_sounds_until.erase(it.first);
+    for (auto& [sound, timer] : blocked_sounds_until) {
+        if (timer < TIMER_INIT()) {
+            blocked_sounds_until.erase(sound);
             break;
         }
     }
@@ -278,7 +278,7 @@ void AudioSettings::SignalTerminate()
 }
 void AudioSettings::LoadSettings(ToolboxIni* ini)
 {
-    CSimpleIni::TNamesDepend keys{};
+    TNamesDepend keys{};
     blocked_sounds.clear();
     if (ini->GetAllKeys(Name(), keys)) {
         for (const auto& key : keys) {
@@ -293,7 +293,7 @@ void AudioSettings::LoadSettings(ToolboxIni* ini)
 }
 void AudioSettings::SaveSettings(ToolboxIni* ini)
 {
-    CSimpleIni::TNamesDepend values{};
+    TNamesDepend values{};
     ini->Delete(Name(), "blocked_sounds");
     std::string buf;
     size_t i = 0;

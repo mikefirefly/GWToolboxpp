@@ -503,8 +503,9 @@ void TransmoModule::DrawSettingsInternal()
         ImGui::TableSetupColumn("##del",         ImGuiTableColumnFlags_WidthFixed, 30.f);
         ImGui::TableHeadersRow();
 
+        size_t i = 0;
         for (auto* entry : npc_transmo_list) {
-            ImGui::PushID(entry);
+            ImGui::PushID(i++);
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::SetNextItemWidth(-1);
@@ -569,7 +570,7 @@ void TransmoModule::LoadSettings(ToolboxIni* ini)
             delete e;
         }
         npc_transmo_list.clear();
-        ToolboxIni::TNamesDepend transmo_keys;
+        TNamesDepend transmo_keys;
         ini->GetAllKeys(transmo_section, transmo_keys);
         for (const auto& key : transmo_keys) {
             if (!key.pItem[0] || strcmp(key.pItem, "_saved") == 0) {
