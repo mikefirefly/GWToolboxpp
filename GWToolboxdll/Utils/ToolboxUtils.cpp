@@ -91,7 +91,19 @@ namespace GW {
                 case MapID::Ravens_Point_Level_2:
                 case MapID::Ravens_Point_Level_3:
                 case MapID::Glints_Challenge_mission: // CrystalDesert
+                // Deldrimor: EotN missions with Destroyers (would otherwise show Norn/Asuran by region)
+                case MapID::A_Gate_Too_Far_Level_1:
+                case MapID::A_Gate_Too_Far_Level_2:
+                case MapID::A_Gate_Too_Far_Level_3:
+                case MapID::A_Gate_Too_Far_mission:
+                case MapID::The_Elusive_Golemancer_Level_1:
+                case MapID::The_Elusive_Golemancer_Level_2:
+                case MapID::The_Elusive_Golemancer_Level_3:
+                case MapID::The_Elusive_Golemancer_mission:
                     return {TitleID::Deldrimor};
+                // Lightbringer: Grand Court of Sebelkeh mission has Margonites (would otherwise show Sunspear by continent)
+                case MapID::Grand_Court_of_Sebelkeh:
+                    return {TitleID::Lightbringer};
                 // Vanguard: DepthsOfTyria dungeons in Charr territory
                 case MapID::Cathedral_of_Flames_Level_1:
                 case MapID::Cathedral_of_Flames_Level_2:
@@ -192,6 +204,17 @@ namespace GW {
         }
 
     } // namespace Map
+    namespace SkillbarMgr {
+        GW::Attribute* GetPlayerAttribute(GW::Constants::Attribute attribute_id) {
+            const auto my_id = GW::Agents::GetControlledCharacterId();
+            PartyAttributeArray& party_attributes = GW::GetWorldContext()->attributes;
+            for (PartyAttribute& agent_attributes : party_attributes) {
+                if (agent_attributes.agent_id != my_id) continue;
+                return &agent_attributes.attribute[(uint32_t)attribute_id];
+            }
+            return 0;
+        }
+    }
     namespace LoginMgr {
         const bool IsCharSelectReady()
         {
@@ -794,16 +817,7 @@ namespace GW {
 
             const uint32_t target_id = custom_effect_id_base | static_cast<uint32_t>(skill_id);
 
-            // Update if this skill's custom effect already exists.
-            for (uint32_t i = 0; i < arr.m_size; i++) {
-                auto& e = arr.m_buffer[i];
-                if (e.effect_id == target_id) {
-                    e.duration = duration_seconds;
-                    e.timestamp = GW::MemoryMgr::GetSkillTimer();
-                    GW::UI::SendUIMessage(GW::UI::UIMessage::kEffectRenew, &e);
-                    return e.effect_id;
-                }
-            }
+            RemoveCustomEffect(target_id);
 
             GW::Effect new_effect{};
             new_effect.skill_id = skill_id;
@@ -1082,7 +1096,7 @@ namespace ToolboxUtils {
                 case GW::Constants::HeroID::Merc6:
                 case GW::Constants::HeroID::Merc7:
                 case GW::Constants::HeroID::Merc8:
-                    if (!a.name[0]) return false; // Unlocked, but not assigned.
+                    return (a.appearance_bitmap && !wcseq(GW::AccountMgr::GetCurrentPlayerName(), a.name)); // Unlocked, but not assigned.
             }
             return true;
         }

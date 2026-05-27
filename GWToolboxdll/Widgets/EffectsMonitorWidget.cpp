@@ -68,16 +68,25 @@ namespace {
         uint32_t timestamp_ms = 0;
     } pending_spirit_spawn;
 
+    // Set when a spirit agent spawns before the skill activation message arrives.
+    struct PendingAgentSpawn {
+        uint32_t agent_id = 0;
+        GW::Constants::SkillID skill_id = GW::Constants::SkillID::No_Skill;
+        uint32_t timestamp_ms = 0;
+    } pending_agent_spawn;
+
+    bool IsAlliedSpirit(const GW::Agent* agent) {
+        return GW::Agents::GetAgentMatchesFlags(agent, GW::AgentTargetFlags::Include_SpiritPet | GW::AgentTargetFlags::Exclude_DeadSpiritPet);
+    }
+
     GW::HookEntry spirit_ui_hook;
 
-    float GetSpiritDuration(const GW::Constants::SkillID skill_id, const uint32_t npc_level)
+    float GetSpiritDuration(const GW::Constants::SkillID skill_id)
     {
         const auto* skill = GW::SkillbarMgr::GetSkillConstantData(skill_id);
-        if (!skill || skill->duration0 == 0) return 60.f;
-        const float d0 = static_cast<float>(skill->duration0);
-        const float d15 = static_cast<float>(skill->duration15);
-        const float level = std::min(static_cast<float>(npc_level), 20.f);
-        return d0 + (d15 - d0) * level / 15.f;
+        if (!(skill && skill->duration0)) return 60.f;
+        const auto att = GW::SkillbarMgr::GetPlayerAttribute((GW::Constants::Attribute)skill->attribute);
+        return !att || att->level == 0 ? skill->duration0 : skill->duration0 + (skill->duration15 - skill->duration0) * att->level / 15.f;
     }
 
     void RemoveTrackedSpirit(const uint32_t agent_id)
@@ -86,6 +95,24 @@ namespace {
         if (it == tracked_spirits.end()) return;
         GW::Effects::RemoveCustomEffect(SpiritEffectId(it->second));
         tracked_spirits.erase(it);
+    }
+
+    void TrackSpirit(const uint32_t agent_id, const GW::Constants::SkillID skill_id)
+    {
+        // Evict any previously tracked spirit for this skill_id.
+        // The old agent's kAgentDestroy may arrive after us, so we must unlink it
+        // from tracked_spirits now so RemoveTrackedSpirit doesn't kill our new effect.
+        for (auto it = tracked_spirits.begin(); it != tracked_spirits.end();) {
+            if (it->second == skill_id && it->first != agent_id) {
+                tracked_spirits.erase(it); // don't call RemoveTrackedSpirit - that would remove the effect
+                break;
+            }
+            else
+                ++it;
+        }
+        const float duration = GetSpiritDuration(skill_id);
+        GW::Effects::AddCustomEffect(skill_id, duration);
+        tracked_spirits[agent_id] = skill_id;
     }
 
     void OnSpiritUIMessage(GW::HookStatus*, GW::UI::UIMessage message_id, void* wparam, void*)
@@ -99,27 +126,41 @@ namespace {
                 spirit_enc_name_to_skill_id.begin(), spirit_enc_name_to_skill_id.end(),
                 [&](const auto& kv) { return kv.second == packet->skill_id; });
             if (!is_spirit) break;
-            pending_spirit_spawn = {packet->skill_id, GW::MemoryMgr::GetSkillTimer()};
+            // Agent may have already spawned before this activation message arrived.
+            if (pending_agent_spawn.skill_id == packet->skill_id
+                && GW::MemoryMgr::GetSkillTimer() - pending_agent_spawn.timestamp_ms <= 500
+                && IsAlliedSpirit(GW::Agents::GetAgentByID(pending_agent_spawn.agent_id))) {
+                TrackSpirit(pending_agent_spawn.agent_id, packet->skill_id);
+                pending_agent_spawn = {};
+            }
+            else {
+                pending_spirit_spawn = {packet->skill_id, GW::MemoryMgr::GetSkillTimer()};
+            }
         } break;
         case GW::UI::UIMessage::kAgentUpdate: {
-            if (!track_spirit_effects || pending_spirit_spawn.skill_id == GW::Constants::SkillID::No_Skill) break;
+            if (!track_spirit_effects) break;
             const auto agent_id = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(wparam));
-            if (GW::MemoryMgr::GetSkillTimer() - pending_spirit_spawn.timestamp_ms > 500) {
-                pending_spirit_spawn = {};
-                break;
-            }
             if (tracked_spirits.contains(agent_id)) break;
             const auto* agent = GW::Agents::GetAgentByID(agent_id);
-            const auto* living = agent ? agent->GetAsAgentLiving() : nullptr;
-            if (!living || living->allegiance != GW::Constants::Allegiance::Spirit_Pet) break;
+            if (!IsAlliedSpirit(agent)) break;
             const auto* enc_name = GW::Agents::GetAgentEncName(agent);
             if (!enc_name) break;
             const auto name_it = spirit_enc_name_to_skill_id.find(enc_name);
-            if (name_it == spirit_enc_name_to_skill_id.end() || name_it->second != pending_spirit_spawn.skill_id) break;
-            const float duration = GetSpiritDuration(name_it->second, living->level);
-            GW::Effects::AddCustomEffect(name_it->second, duration);
-            tracked_spirits[agent_id] = name_it->second;
-            pending_spirit_spawn = {};
+            if (name_it == spirit_enc_name_to_skill_id.end()) break;
+            if (pending_spirit_spawn.skill_id != GW::Constants::SkillID::No_Skill) {
+                // Skill activation arrived first: resolve now.
+                if (GW::MemoryMgr::GetSkillTimer() - pending_spirit_spawn.timestamp_ms > 500) {
+                    pending_spirit_spawn = {};
+                    break;
+                }
+                if (name_it->second != pending_spirit_spawn.skill_id) break;
+                TrackSpirit(agent_id, name_it->second);
+                pending_spirit_spawn = {};
+            }
+            else {
+                // Agent spawned before skill activation: store and wait.
+                pending_agent_spawn = {agent_id, name_it->second, GW::MemoryMgr::GetSkillTimer()};
+            }
         } break;
         case GW::UI::UIMessage::kAgentDestroy: {
             const auto agent_id = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(wparam));
@@ -273,6 +314,7 @@ void EffectsMonitorWidget::Terminate()
     }
     tracked_spirits.clear();
     pending_spirit_spawn = {};
+    pending_agent_spawn = {};
 }
 void EffectsMonitorWidget::Update(float delta)
 {
@@ -303,18 +345,20 @@ void EffectsMonitorWidget::Update(float delta)
         }
     }
 
-    // Expire a pending spirit spawn that never produced a matching agent.
-    if (pending_spirit_spawn.skill_id != GW::Constants::SkillID::No_Skill && GW::MemoryMgr::GetSkillTimer() - pending_spirit_spawn.timestamp_ms > 500) {
+    // Expire pending states that never produced a matching counterpart.
+    const auto now_ms = GW::MemoryMgr::GetSkillTimer();
+    if (pending_spirit_spawn.skill_id != GW::Constants::SkillID::No_Skill && now_ms - pending_spirit_spawn.timestamp_ms > 500) {
         pending_spirit_spawn = {};
+    }
+    if (pending_agent_spawn.skill_id != GW::Constants::SkillID::No_Skill && now_ms - pending_agent_spawn.timestamp_ms > 500) {
+        pending_agent_spawn = {};
     }
 
     // Validate that tracked spirits still exist and are alive.
     if (!tracked_spirits.empty()) {
         std::vector<uint32_t> to_remove;
         for (const auto& [agent_id, skill_id] : tracked_spirits) {
-            const auto* agent = GW::Agents::GetAgentByID(agent_id);
-            const auto* living = agent ? agent->GetAsAgentLiving() : nullptr;
-            if (!living || living->hp <= 0.f || living->allegiance != GW::Constants::Allegiance::Spirit_Pet) {
+            if (!IsAlliedSpirit(GW::Agents::GetAgentByID(agent_id))) {
                 to_remove.push_back(agent_id);
             }
         }
